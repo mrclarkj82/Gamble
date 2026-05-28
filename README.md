@@ -22,6 +22,7 @@ Version 2 adds class sections and class codes:
 - Students see joined classes on their dashboard.
 - Teachers see their section list and can open rosters.
 - Admin can see all active sections for the school.
+- Admin can switch between the Admin dashboard and Teacher dashboard tools.
 
 Version 2 still does not include curriculum packages, assignments, house points, Google Classroom sync, live student monitoring, gradebook, teacher approval workflows, parent accounts, Clever, or Infinite Campus integration.
 
@@ -160,6 +161,8 @@ Admin can see:
 - Class code
 - Student count
 - Created date
+
+The admin account also has an admin-only dashboard switch for **Admin view** and **Teacher view**. Teacher view lets the admin create personal teacher sections and view rosters using the same section tools teachers use, while the underlying signed-in role remains `admin`.
 
 ## Firestore Structure
 
