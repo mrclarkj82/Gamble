@@ -10,9 +10,9 @@ export const ROLE_LABELS = {
 
 export const DASHBOARD_MESSAGES = {
   student:
-    "Next step coming soon: join class sections, view pre-built curriculum, view assignments, and view house points.",
+    "Class joining is available now. Next step coming soon: view pre-built curriculum, view assignments, and view house points.",
   teacher:
-    "Next step coming soon: create class sections, generate class codes, assign pre-built curriculum, view students, and award house points.",
+    "Class sections and rosters are available now. Next step coming soon: assign pre-built curriculum, view student work, and award house points.",
   admin:
-    "Admin tools coming soon: manage school code, manage teachers, manage students, manage class sections, manage houses, and view engagement.",
+    "School section visibility is available now. Admin tools coming soon: manage teachers, manage students, manage houses, and view engagement.",
 };

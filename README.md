@@ -1,19 +1,29 @@
-# Doral Red Rock School Hub - Version 1
+# Doral Red Rock School Hub
 
-Version 1 is a static Vite + React web app for the secure entry gate only. It uses Firebase Authentication for Google sign-in and Firestore for school-code verification and user profile storage.
+This is a static Vite + React web app backed by Firebase Authentication and Cloud Firestore.
 
-## What Version 1 Does
+## Version 1
 
-- Signs users in with Google through Firebase Authentication.
-- Detects role from the signed-in email address.
-- Blocks unauthorized email domains before showing the school-code prompt.
-- Verifies an active school code from Firestore.
-- Creates or updates `users/{uid}` after successful school-code verification.
-- Routes students, teachers, and admin users to separate placeholder dashboards.
+Version 1 built the secure entry gate:
 
-## What Version 1 Does Not Do Yet
+- Google sign-in with Firebase Authentication.
+- Role detection from the signed-in email address.
+- School-code verification through Firestore.
+- User profile creation/update in `users/{uid}`.
+- Placeholder dashboards for students, teachers, and admin.
 
-This version does not include curriculum, assignments, house points, class section codes, student schedules, teacher-created pages, roster management, gradebook, parent accounts, Infinite Campus sync, or Clever sync.
+## Version 2
+
+Version 2 adds class sections and class codes:
+
+- Teachers can create class sections.
+- Each section gets a readable class code with a Firestore reservation document to prevent collisions.
+- Students can join active sections with class codes.
+- Students see joined classes on their dashboard.
+- Teachers see their section list and can open rosters.
+- Admin can see all active sections for the school.
+
+Version 2 still does not include curriculum packages, assignments, house points, Google Classroom sync, live student monitoring, gradebook, teacher approval workflows, parent accounts, Clever, or Infinite Campus integration.
 
 ## Accepted Accounts
 
@@ -23,7 +33,7 @@ This version does not include curriculum, assignments, house points, class secti
 
 Admin detection runs first, so `joseph.clark@doralacademynv.org` becomes `admin`, not `teacher`.
 
-## Install Dependencies
+## Install
 
 ```bash
 npm install
@@ -35,48 +45,51 @@ npm install
 npm run dev
 ```
 
-Vite will print a local URL, usually `http://localhost:5173`.
+Vite usually serves the app at `http://localhost:5173`.
 
-## Build for Static Hosting
+## Build
 
 ```bash
 npm run build
 ```
 
-The production build is created in `dist/`.
+The static production build is created in `dist/`.
 
-## Add Firebase Config
+## Deploy to Firebase
 
-Open [src/firebase.js](src/firebase.js) to review the Firebase web app config for project `gamble-714a3`.
+This repo includes `.firebaserc` and `firebase.json` for project `gamble-714a3`.
 
-Firebase Console > Project settings > General > Your apps > Web app
-
-Use the web app config only. Do not paste service-account keys into the frontend.
-
-```js
-const firebaseConfig = {
-  apiKey: "AIzaSyDmQmZHkN7DB9hV0Qj-02hk5Rez5zUAqGE",
-  authDomain: "gamble-714a3.firebaseapp.com",
-  projectId: "gamble-714a3",
-  storageBucket: "gamble-714a3.firebasestorage.app",
-  messagingSenderId: "330730321975",
-  appId: "1:330730321975:web:32f96492ac78b95bc927b2",
-};
+```bash
+npm run build
+npx firebase-tools deploy --only hosting,firestore
 ```
 
-## Enable Google Authentication
+`firestore` deploys both `firestore.rules` and `firestore.indexes.json`.
 
-1. Open Firebase Console.
-2. Go to Authentication > Sign-in method.
-3. Enable Google.
-4. Add your support email.
-5. In Authentication > Settings > Authorized domains, add each domain you will use for testing, such as:
+Live hosting URL:
+
+```text
+https://gamble-714a3.web.app
+```
+
+## Firebase Config
+
+The Firebase web app config is in `src/firebase.js`.
+
+Use only Firebase web app config values in the frontend. Do not paste service-account keys into this project.
+
+## Firebase Console Setup
+
+1. Enable Google Authentication in Firebase Console.
+2. Add authorized domains for local and deployed testing:
    - `localhost`
-   - your GitHub Pages domain, for example `YOUR_GITHUB_USERNAME.github.io`
+   - `gamble-714a3.web.app`
+   - any GitHub Pages domain you choose to use later
+3. Create Firestore in native mode.
+4. Create the school document below if it does not already exist.
+5. Deploy or paste the rules from `firestore.rules`.
 
-## Create the Firestore School Document
-
-Create this document manually in Firestore:
+## School Document
 
 Path:
 
@@ -97,53 +110,58 @@ Fields:
 }
 ```
 
-Use Firestore's timestamp type for `createdAt`.
+## Teacher Workflow
 
-## Firestore Security Rules
+Teachers sign in, verify the school code, and use **My Class Sections** on the teacher dashboard.
 
-This project includes [firestore.rules](firestore.rules). The rules are intentionally basic for Version 1:
+They enter:
 
-- Users must be authenticated.
-- Users can read only their own `users/{uid}` document.
-- Users can create or update only their own `users/{uid}` document.
-- The user profile role must match the authenticated Google email.
-- Authenticated users with accepted Doral emails can read active school documents.
-- No frontend user can write to `schools/{schoolId}`.
+- Course Name
+- Period
 
-Deploy the rules with the Firebase CLI or paste them into Firebase Console > Firestore Database > Rules.
+The app generates:
 
-## GitHub Pages or Static Hosting
+- `sectionName`, for example `Digital Game Development - Period 3`
+- `classCode`, for example `CLARK-DGD-P3-7K2Q9`
 
-This app does not require a custom backend server.
+Creating a section writes:
 
-For GitHub Pages, set the Vite base path if deploying under a repository subpath:
+- `schools/{schoolId}/sections/{sectionId}`
+- `users/{teacherUid}/sections/{sectionId}`
+- `schools/{schoolId}/classCodes/{classCode}`
 
-```js
-// vite.config.js
-export default defineConfig({
-  base: "/YOUR_REPOSITORY_NAME/",
-  plugins: [react()],
-});
-```
+The `classCodes` document is a Version 2 helper index used to reserve each generated code.
 
-Then build the app:
+## Student Workflow
 
-```bash
-npm run build
-```
+Students sign in, verify the school code, and use **My Classes** on the student dashboard.
 
-Deploy the `dist/` folder through GitHub Pages, Firebase Hosting, Netlify, Vercel, or another static host.
+They enter a class code. The app normalizes it to uppercase, finds the matching active section in their school, and enrolls them immediately with `status: "active"`.
 
-This repo includes Firebase Hosting config in `firebase.json`. To deploy to Firebase Hosting:
+Joining a class writes:
 
-```bash
-npm run build
-npx firebase-tools deploy --only hosting,firestore:rules
-```
+- `schools/{schoolId}/sections/{sectionId}/enrollments/{studentUid}`
+- `users/{studentUid}/sections/{sectionId}`
+- increments `studentCount` on the section
 
-## Firestore Data Shape
+Duplicate joins are blocked by checking both the user section reference and the enrollment document.
 
-Schools:
+## Admin Workflow
+
+The admin dashboard shows **School Sections**, a read-only overview of active sections for the admin's `schoolId`.
+
+Admin can see:
+
+- Section name
+- Teacher name
+- Teacher email
+- Course name
+- Period
+- Class code
+- Student count
+- Created date
+
+## Firestore Structure
 
 ```text
 schools/{schoolId}
@@ -155,27 +173,110 @@ schools/{schoolId}
   createdAt
 ```
 
-Users:
-
 ```text
-users/{uid}
-  uid
-  email
-  displayName
-  role
+schools/{schoolId}/sections/{sectionId}
+  sectionId
   schoolId
-  schoolName
-  schoolCodeUsed
+  teacherUid
+  teacherName
+  teacherEmail
+  courseName
+  period
+  sectionName
+  classCode
+  active
   createdAt
-  lastLogin
+  updatedAt
+  studentCount
 ```
 
-## Manual Firebase Console Steps
+```text
+schools/{schoolId}/sections/{sectionId}/enrollments/{studentUid}
+  studentUid
+  studentName
+  studentEmail
+  status
+  joinedAt
+```
 
-1. Create a Firebase project.
-2. Add a Firebase web app and copy its config into [src/firebase.js](src/firebase.js).
-3. Enable Google Authentication.
-4. Create a Firestore database.
-5. Add the `schools/doral-red-rock` document with code `DRR2026`.
-6. Add the rules from [firestore.rules](firestore.rules).
-7. Add any local or deployed testing domains to Firebase Authentication authorized domains.
+```text
+users/{studentUid}/sections/{sectionId}
+  sectionId
+  schoolId
+  courseName
+  period
+  sectionName
+  teacherUid
+  teacherName
+  teacherEmail
+  classCode
+  roleInSection
+  joinedAt
+  status
+```
+
+```text
+users/{teacherUid}/sections/{sectionId}
+  sectionId
+  schoolId
+  courseName
+  period
+  sectionName
+  teacherUid
+  teacherName
+  teacherEmail
+  classCode
+  roleInSection
+  createdAt
+  active
+```
+
+```text
+schools/{schoolId}/classCodes/{classCode}
+  classCode
+  sectionId
+  schoolId
+  teacherUid
+  active
+  createdAt
+```
+
+## Firestore Rules
+
+The included `firestore.rules` file enforces the Version 1 gate and Version 2 section access:
+
+- Users can read/write only their own top-level user profile.
+- Users can read only their own `users/{uid}/sections` documents.
+- Teachers and admin can create sections only for their own authenticated UID.
+- Teachers can read only sections they own.
+- Teachers can read rosters only for sections they own.
+- Students can create only their own enrollment documents.
+- Students can create only their own user section references.
+- Students can increment `studentCount` only as part of an enrollment transaction.
+- Admin can read all active sections in their own school.
+- Frontend users cannot edit school documents.
+
+Practical Version 2 limitation: students may read active section documents in their own school because Firestore rules must allow the class-code lookup query. The UI only exposes joining by class code.
+
+## Testing
+
+Teacher:
+
+1. Sign in with an email ending in `@doralacademynv.org`.
+2. Enter school code `DRR2026`.
+3. Create a section from **My Class Sections**.
+4. Copy the generated class code.
+5. Open the section roster.
+
+Student:
+
+1. Sign in with an email ending in `@student.doralacademynv.org`.
+2. Enter school code `DRR2026`.
+3. Paste the teacher's class code into **My Classes**.
+4. Confirm the class appears and duplicate joins are blocked.
+
+Admin:
+
+1. Sign in as `joseph.clark@doralacademynv.org`.
+2. Enter school code `DRR2026`.
+3. Confirm active sections appear in **School Sections**.

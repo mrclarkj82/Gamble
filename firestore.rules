@@ -36,6 +36,43 @@ service cloud.firestore {
       );
     }
 
+    function hasProfile() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function profileRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function profileSchoolId() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.schoolId;
+    }
+
+    function isCurrentUserStudent() {
+      return hasProfile() && profileRole() == "student";
+    }
+
+    function isCurrentUserTeacher() {
+      return hasProfile() && profileRole() == "teacher";
+    }
+
+    function isCurrentUserAdmin() {
+      return hasProfile() && profileRole() == "admin";
+    }
+
+    function sectionExists(schoolId, sectionId) {
+      return exists(/databases/$(database)/documents/schools/$(schoolId)/sections/$(sectionId));
+    }
+
+    function sectionData(schoolId, sectionId) {
+      return get(/databases/$(database)/documents/schools/$(schoolId)/sections/$(sectionId)).data;
+    }
+
+    function sectionDataAfter(schoolId, sectionId) {
+      return getAfter(/databases/$(database)/documents/schools/$(schoolId)/sections/$(sectionId)).data;
+    }
+
     function userDocumentShapeIsAllowed() {
       return request.resource.data.keys().hasOnly([
         "uid",
@@ -50,6 +87,223 @@ service cloud.firestore {
       ]);
     }
 
+    function sectionShapeIsAllowed(schoolId, sectionId) {
+      return request.resource.data.keys().hasOnly([
+        "sectionId",
+        "schoolId",
+        "teacherUid",
+        "teacherName",
+        "teacherEmail",
+        "courseName",
+        "period",
+        "sectionName",
+        "classCode",
+        "active",
+        "createdAt",
+        "updatedAt",
+        "studentCount"
+      ])
+      && request.resource.data.keys().hasAll([
+        "sectionId",
+        "schoolId",
+        "teacherUid",
+        "teacherName",
+        "teacherEmail",
+        "courseName",
+        "period",
+        "sectionName",
+        "classCode",
+        "active",
+        "createdAt",
+        "updatedAt",
+        "studentCount"
+      ])
+      && request.resource.data.sectionId == sectionId
+      && request.resource.data.schoolId == schoolId
+      && request.resource.data.teacherUid == request.auth.uid
+      && request.resource.data.active == true
+      && request.resource.data.studentCount == 0
+      && request.resource.data.classCode.matches("^[A-Z0-9-]+$")
+      && request.resource.data.createdAt == request.time
+      && request.resource.data.updatedAt == request.time;
+    }
+
+    function classCodeShapeIsAllowed(schoolId, classCode) {
+      return request.resource.data.keys().hasOnly([
+        "classCode",
+        "sectionId",
+        "schoolId",
+        "teacherUid",
+        "active",
+        "createdAt"
+      ])
+      && request.resource.data.keys().hasAll([
+        "classCode",
+        "sectionId",
+        "schoolId",
+        "teacherUid",
+        "active",
+        "createdAt"
+      ])
+      && request.resource.data.classCode == classCode
+      && request.resource.data.classCode.matches("^[A-Z0-9-]+$")
+      && request.resource.data.schoolId == schoolId
+      && request.resource.data.teacherUid == request.auth.uid
+      && request.resource.data.active == true
+      && request.resource.data.createdAt == request.time
+      && existsAfter(/databases/$(database)/documents/schools/$(schoolId)/sections/$(request.resource.data.sectionId))
+      && sectionDataAfter(schoolId, request.resource.data.sectionId).classCode == classCode
+      && sectionDataAfter(schoolId, request.resource.data.sectionId).teacherUid == request.auth.uid;
+    }
+
+    function teacherUserSectionShapeIsAllowed(userId, sectionId) {
+      return request.resource.data.keys().hasOnly([
+        "sectionId",
+        "schoolId",
+        "courseName",
+        "period",
+        "sectionName",
+        "teacherUid",
+        "teacherName",
+        "teacherEmail",
+        "classCode",
+        "roleInSection",
+        "createdAt",
+        "active"
+      ])
+      && request.resource.data.keys().hasAll([
+        "sectionId",
+        "schoolId",
+        "courseName",
+        "period",
+        "sectionName",
+        "teacherUid",
+        "teacherName",
+        "teacherEmail",
+        "classCode",
+        "roleInSection",
+        "createdAt",
+        "active"
+      ])
+      && request.auth.uid == userId
+      && (isCurrentUserTeacher() || isCurrentUserAdmin())
+      && request.resource.data.sectionId == sectionId
+      && request.resource.data.schoolId == profileSchoolId()
+      && request.resource.data.teacherUid == request.auth.uid
+      && request.resource.data.roleInSection == "teacher"
+      && request.resource.data.active == true
+      && request.resource.data.classCode.matches("^[A-Z0-9-]+$")
+      && request.resource.data.createdAt == request.time
+      && existsAfter(/databases/$(database)/documents/schools/$(request.resource.data.schoolId)/sections/$(sectionId))
+      && sectionDataAfter(request.resource.data.schoolId, sectionId).teacherUid == request.auth.uid;
+    }
+
+    function studentUserSectionShapeIsAllowed(userId, sectionId) {
+      return request.resource.data.keys().hasOnly([
+        "sectionId",
+        "schoolId",
+        "courseName",
+        "period",
+        "sectionName",
+        "teacherUid",
+        "teacherName",
+        "teacherEmail",
+        "classCode",
+        "roleInSection",
+        "joinedAt",
+        "status"
+      ])
+      && request.resource.data.keys().hasAll([
+        "sectionId",
+        "schoolId",
+        "courseName",
+        "period",
+        "sectionName",
+        "teacherUid",
+        "teacherName",
+        "teacherEmail",
+        "classCode",
+        "roleInSection",
+        "joinedAt",
+        "status"
+      ])
+      && request.auth.uid == userId
+      && isCurrentUserStudent()
+      && request.resource.data.sectionId == sectionId
+      && request.resource.data.schoolId == profileSchoolId()
+      && request.resource.data.roleInSection == "student"
+      && request.resource.data.status == "active"
+      && request.resource.data.classCode.matches("^[A-Z0-9-]+$")
+      && request.resource.data.joinedAt == request.time
+      && sectionExists(request.resource.data.schoolId, sectionId)
+      && sectionData(request.resource.data.schoolId, sectionId).active == true
+      && existsAfter(/databases/$(database)/documents/schools/$(request.resource.data.schoolId)/sections/$(sectionId)/enrollments/$(request.auth.uid));
+    }
+
+    function enrollmentShapeIsAllowed(schoolId, sectionId, studentUid) {
+      return request.resource.data.keys().hasOnly([
+        "studentUid",
+        "studentName",
+        "studentEmail",
+        "status",
+        "joinedAt"
+      ])
+      && request.resource.data.keys().hasAll([
+        "studentUid",
+        "studentName",
+        "studentEmail",
+        "status",
+        "joinedAt"
+      ])
+      && request.auth.uid == studentUid
+      && request.resource.data.studentUid == studentUid
+      && request.resource.data.studentEmail == authEmail()
+      && request.resource.data.status == "active"
+      && request.resource.data.joinedAt == request.time
+      && isCurrentUserStudent()
+      && profileSchoolId() == schoolId
+      && sectionExists(schoolId, sectionId)
+      && sectionData(schoolId, sectionId).schoolId == schoolId
+      && sectionData(schoolId, sectionId).active == true;
+    }
+
+    function studentCountIncrementIsAllowed(schoolId, sectionId) {
+      return isCurrentUserStudent()
+        && profileSchoolId() == schoolId
+        && resource.data.schoolId == schoolId
+        && resource.data.active == true
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "studentCount",
+          "updatedAt"
+        ])
+        && request.resource.data.studentCount == resource.data.studentCount + 1
+        && request.resource.data.updatedAt == request.time
+        && existsAfter(/databases/$(database)/documents/schools/$(schoolId)/sections/$(sectionId)/enrollments/$(request.auth.uid))
+        && existsAfter(/databases/$(database)/documents/users/$(request.auth.uid)/sections/$(sectionId));
+    }
+
+    function canReadSection(schoolId) {
+      return hasProfile()
+        && profileSchoolId() == schoolId
+        && (
+          isCurrentUserAdmin()
+          || (isCurrentUserTeacher() && resource.data.teacherUid == request.auth.uid)
+          || (isCurrentUserStudent() && resource.data.active == true)
+        );
+    }
+
+    function canReadEnrollment(schoolId, sectionId, studentUid) {
+      return hasProfile()
+        && profileSchoolId() == schoolId
+        && (
+          isCurrentUserAdmin()
+          || (isCurrentUserTeacher()
+            && sectionExists(schoolId, sectionId)
+            && sectionData(schoolId, sectionId).teacherUid == request.auth.uid)
+          || (isCurrentUserStudent() && request.auth.uid == studentUid)
+        );
+    }
+
     match /users/{userId} {
       allow read: if isSignedIn() && request.auth.uid == userId;
 
@@ -62,6 +316,13 @@ service cloud.firestore {
         && userDocumentShapeIsAllowed();
 
       allow delete: if false;
+
+      match /sections/{sectionId} {
+        allow read: if isSignedIn() && request.auth.uid == userId;
+        allow create: if teacherUserSectionShapeIsAllowed(userId, sectionId)
+          || studentUserSectionShapeIsAllowed(userId, sectionId);
+        allow update, delete: if false;
+      }
     }
 
     match /schools/{schoolId} {
@@ -70,6 +331,35 @@ service cloud.firestore {
         && resource.data.active == true;
 
       allow write: if false;
+
+      match /classCodes/{classCode} {
+        allow get: if hasProfile() && profileSchoolId() == schoolId;
+
+        allow create: if hasProfile()
+          && profileSchoolId() == schoolId
+          && (isCurrentUserTeacher() || isCurrentUserAdmin())
+          && classCodeShapeIsAllowed(schoolId, classCode);
+
+        allow update, delete: if false;
+      }
+
+      match /sections/{sectionId} {
+        allow read: if canReadSection(schoolId);
+
+        allow create: if hasProfile()
+          && profileSchoolId() == schoolId
+          && (isCurrentUserTeacher() || isCurrentUserAdmin())
+          && sectionShapeIsAllowed(schoolId, sectionId);
+
+        allow update: if studentCountIncrementIsAllowed(schoolId, sectionId);
+        allow delete: if false;
+
+        match /enrollments/{studentUid} {
+          allow read: if canReadEnrollment(schoolId, sectionId, studentUid);
+          allow create: if enrollmentShapeIsAllowed(schoolId, sectionId, studentUid);
+          allow update, delete: if false;
+        }
+      }
     }
 
     match /{document=**} {

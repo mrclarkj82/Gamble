@@ -1,4 +1,7 @@
 import { DASHBOARD_MESSAGES, ROLE_LABELS } from "../constants";
+import AdminSections from "./AdminSections";
+import StudentClasses from "./StudentClasses";
+import TeacherSections from "./TeacherSections";
 
 export default function Dashboard({ role, school, user, onSignOut }) {
   const roleLabel = ROLE_LABELS[role] || "User";
@@ -36,6 +39,16 @@ export default function Dashboard({ role, school, user, onSignOut }) {
 
         <p className="next-step-message">{DASHBOARD_MESSAGES[role]}</p>
       </section>
+
+      {role === "student" ? (
+        <StudentClasses role={role} school={school} user={user} />
+      ) : null}
+
+      {role === "teacher" ? (
+        <TeacherSections role={role} school={school} user={user} />
+      ) : null}
+
+      {role === "admin" ? <AdminSections school={school} /> : null}
     </main>
   );
 }
