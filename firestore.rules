@@ -1,0 +1,79 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function authEmail() {
+      return request.auth.token.email;
+    }
+
+    function isAdminEmail() {
+      return authEmail() == "joseph.clark@doralacademynv.org";
+    }
+
+    function isStudentEmail() {
+      return authEmail().matches(".*@student[.]doralacademynv[.]org$");
+    }
+
+    function isTeacherEmail() {
+      return authEmail().matches(".*@doralacademynv[.]org$") && !isAdminEmail();
+    }
+
+    function isAllowedEmail() {
+      return isAdminEmail() || isStudentEmail() || isTeacherEmail();
+    }
+
+    function roleMatchesEmail() {
+      return (
+        request.resource.data.role == "admin" && isAdminEmail()
+      ) || (
+        request.resource.data.role == "student" && isStudentEmail()
+      ) || (
+        request.resource.data.role == "teacher" && isTeacherEmail()
+      );
+    }
+
+    function userDocumentShapeIsAllowed() {
+      return request.resource.data.keys().hasOnly([
+        "uid",
+        "email",
+        "displayName",
+        "role",
+        "schoolId",
+        "schoolName",
+        "schoolCodeUsed",
+        "createdAt",
+        "lastLogin"
+      ]);
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn() && request.auth.uid == userId;
+
+      allow create, update: if isSignedIn()
+        && request.auth.uid == userId
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.email == authEmail()
+        && isAllowedEmail()
+        && roleMatchesEmail()
+        && userDocumentShapeIsAllowed();
+
+      allow delete: if false;
+    }
+
+    match /schools/{schoolId} {
+      allow read: if isSignedIn()
+        && isAllowedEmail()
+        && resource.data.active == true;
+
+      allow write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
