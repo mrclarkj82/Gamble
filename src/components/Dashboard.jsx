@@ -1,24 +1,27 @@
-import { useState } from "react";
 import { DASHBOARD_MESSAGES, ROLE_LABELS } from "../constants";
 import AdminSections from "./AdminSections";
 import StudentClasses from "./StudentClasses";
 import TeacherSections from "./TeacherSections";
+import { useState } from "react";
 
 export default function Dashboard({ role, school, user, onSignOut }) {
-  const [adminViewMode, setAdminViewMode] = useState("admin");
-  const canSwitchAdminViews = role === "admin";
-  const activeDashboardRole = canSwitchAdminViews ? adminViewMode : role;
+  const [adminView, setAdminView] = useState("admin");
+  const effectiveView = role === "admin" ? adminView : role;
   const roleLabel = ROLE_LABELS[role] || "User";
-  const activeRoleLabel = ROLE_LABELS[activeDashboardRole] || "User";
+  const viewingLabel = ROLE_LABELS[effectiveView] || roleLabel;
   const displayName =
     role === "admin" ? "Joseph Clark" : user?.displayName || user?.email;
+  const message =
+    role === "admin" && effectiveView === "teacher"
+      ? DASHBOARD_MESSAGES.teacher
+      : DASHBOARD_MESSAGES[role];
 
   return (
     <main className="app-shell dashboard-shell">
       <section className="dashboard-topbar">
         <div>
           <p className="eyebrow">Doral Red Rock</p>
-          <h1>{activeRoleLabel} Dashboard</h1>
+          <h1>{viewingLabel} Dashboard</h1>
         </div>
         <button className="secondary-button" onClick={onSignOut}>
           Sign out
@@ -40,28 +43,26 @@ export default function Dashboard({ role, school, user, onSignOut }) {
             <dt>School</dt>
             <dd>{school?.name || "Doral Red Rock"}</dd>
           </div>
-          {canSwitchAdminViews ? (
+          {role === "admin" ? (
             <div>
               <dt>Viewing</dt>
-              <dd>{activeRoleLabel}</dd>
+              <dd>{viewingLabel}</dd>
             </div>
           ) : null}
         </dl>
 
-        {canSwitchAdminViews ? (
-          <div className="mode-switch" aria-label="Dashboard view">
+        {role === "admin" ? (
+          <div className="view-toggle" aria-label="Dashboard view">
             <button
-              className={adminViewMode === "admin" ? "mode-button active" : "mode-button"}
-              onClick={() => setAdminViewMode("admin")}
+              className={adminView === "admin" ? "active" : ""}
+              onClick={() => setAdminView("admin")}
               type="button"
             >
               Admin view
             </button>
             <button
-              className={
-                adminViewMode === "teacher" ? "mode-button active" : "mode-button"
-              }
-              onClick={() => setAdminViewMode("teacher")}
+              className={adminView === "teacher" ? "active" : ""}
+              onClick={() => setAdminView("teacher")}
               type="button"
             >
               Teacher view
@@ -69,20 +70,20 @@ export default function Dashboard({ role, school, user, onSignOut }) {
           </div>
         ) : null}
 
-        <p className="next-step-message">
-          {DASHBOARD_MESSAGES[activeDashboardRole]}
-        </p>
+        <p className="next-step-message">{message}</p>
       </section>
 
-      {role === "student" ? (
+      {effectiveView === "student" ? (
         <StudentClasses role={role} school={school} user={user} />
       ) : null}
 
-      {role === "teacher" || activeDashboardRole === "teacher" ? (
+      {effectiveView === "teacher" ? (
         <TeacherSections role={role} school={school} user={user} />
       ) : null}
 
-      {activeDashboardRole === "admin" ? <AdminSections school={school} /> : null}
+      {effectiveView === "admin" ? (
+        <AdminSections role={role} school={school} user={user} />
+      ) : null}
     </main>
   );
 }

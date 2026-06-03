@@ -1,146 +1,419 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { getAvailableCurriculumPackages } from "../services/curriculum";
 import {
   createSection,
-  getSectionRoster,
-  getTeacherSections,
+  removeStudentFromSection,
   SectionError,
+  subscribeSectionRoster,
+  subscribeTeacherSections,
 } from "../services/sections";
-import CreateSectionForm from "./CreateSectionForm";
-import SectionRoster from "./SectionRoster";
-import TeacherSectionCard from "./TeacherSectionCard";
+import DemoRosterPanel from "./DemoRosterPanel";
+import MathCurriculumView from "./MathCurriculumView";
 
 export default function TeacherSections({ role, school, user }) {
   const [sections, setSections] = useState([]);
-  const [selectedSection, setSelectedSection] = useState(null);
-  const [roster, setRoster] = useState([]);
-  const [isLoadingSections, setIsLoadingSections] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isLoadingRoster, setIsLoadingRoster] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+  const [messageTone, setMessageTone] = useState("success");
+  const [isSaving, setIsSaving] = useState(false);
+  const [sectionForm, setSectionForm] = useState({
+    courseName: "",
+    period: "",
+    curriculumId: "math",
+  });
+  const [selectedRosterSection, setSelectedRosterSection] = useState(null);
+  const [showSelectedRoster, setShowSelectedRoster] = useState(false);
+  const [roster, setRoster] = useState([]);
   const [rosterError, setRosterError] = useState("");
+  const [removingStudentUid, setRemovingStudentUid] = useState("");
+  const [previewSection, setPreviewSection] = useState(null);
+  const [liveMonitorSection, setLiveMonitorSection] = useState(null);
+  const [testSession, setTestSession] = useState(null);
+
+  const curriculumPackages = useMemo(() => getAvailableCurriculumPackages(), []);
+  const sortedSections = useMemo(
+    () =>
+      [...sections].sort((first, second) => {
+        const firstPeriod = Number.parseInt(first.period, 10);
+        const secondPeriod = Number.parseInt(second.period, 10);
+        const firstPeriodIsNumber = Number.isFinite(firstPeriod);
+        const secondPeriodIsNumber = Number.isFinite(secondPeriod);
+
+        if (firstPeriodIsNumber && secondPeriodIsNumber && firstPeriod !== secondPeriod) {
+          return firstPeriod - secondPeriod;
+        }
+
+        if (firstPeriodIsNumber !== secondPeriodIsNumber) {
+          return firstPeriodIsNumber ? -1 : 1;
+        }
+
+        return (first.sectionName || "").localeCompare(second.sectionName || "");
+      }),
+    [sections],
+  );
 
   useEffect(() => {
-    let isMounted = true;
+    if (!school || !user) return undefined;
 
-    async function loadSections() {
-      setIsLoadingSections(true);
-      setError("");
+    setIsLoading(true);
+    return subscribeTeacherSections(
+      school,
+      user.uid,
+      (nextSections) => {
+        setSections(nextSections);
+        setLoadError("");
+        setIsLoading(false);
+      },
+      (error) => {
+        console.error("Teacher sections failed to load", error);
+        setLoadError("Unable to load your class sections.");
+        setIsLoading(false);
+      },
+    );
+  }, [school, user]);
 
-      try {
-        const teacherSections = await getTeacherSections(school.schoolId, user.uid);
-
-        if (isMounted) {
-          setSections(teacherSections);
-        }
-      } catch (loadError) {
-        console.error("Unable to load teacher sections", loadError);
-
-        if (isMounted) {
-          setError("Unable to load class sections.");
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoadingSections(false);
-        }
-      }
+  useEffect(() => {
+    if (!selectedRosterSection) {
+      setRoster([]);
+      return undefined;
     }
 
-    loadSections();
+    setRosterError("");
+    return subscribeSectionRoster(
+      school,
+      selectedRosterSection.sectionId || selectedRosterSection.id,
+      setRoster,
+      (error) => {
+        console.error("Roster failed to load", error);
+        setRosterError("Unable to load roster.");
+      },
+    );
+  }, [school, selectedRosterSection]);
 
-    return () => {
-      isMounted = false;
-    };
-  }, [school.schoolId, user.uid]);
+  function updateSectionField(field, value) {
+    setSectionForm((current) => ({ ...current, [field]: value }));
+  }
 
-  async function handleCreateSection(sectionData) {
+  async function handleCreateSection(event) {
+    event.preventDefault();
     setMessage("");
-    setError("");
+
+    const curriculumPackage = curriculumPackages.find(
+      (curriculum) => curriculum.curriculumId === sectionForm.curriculumId,
+    );
+
     setIsSaving(true);
-
     try {
-      const newSection = await createSection({
-        ...sectionData,
+      await createSection({
+        courseName: sectionForm.courseName,
+        curriculumPackage,
+        period: sectionForm.period,
         role,
-        schoolId: school.schoolId,
-        teacherUser: user,
+        school,
+        user,
       });
-
-      setSections((currentSections) => [newSection, ...currentSections]);
-      setMessage("Section created successfully.");
-    } catch (createError) {
-      console.error("Unable to create section", createError);
-      setError(
-        createError instanceof SectionError
-          ? createError.message
-          : "Unable to create section.",
+      setSectionForm({ courseName: "", period: "", curriculumId: "math" });
+      setMessage("Curriculum assigned successfully.");
+      setMessageTone("success");
+    } catch (error) {
+      console.error("Section creation failed", error);
+      setMessage(
+        error instanceof SectionError ? error.message : "Unable to create section.",
       );
+      setMessageTone("danger");
     } finally {
       setIsSaving(false);
     }
   }
 
-  async function handleViewRoster(section) {
-    setSelectedSection(section);
-    setRoster([]);
+  async function handleRemoveStudent(student) {
+    if (!selectedRosterSection) return;
+
+    const confirmed = window.confirm(
+      `Remove ${student.studentName || student.studentEmail} from ${
+        selectedRosterSection.sectionName
+      }?`,
+    );
+
+    if (!confirmed) return;
+
+    setRemovingStudentUid(student.studentUid);
     setRosterError("");
-    setIsLoadingRoster(true);
 
     try {
-      const nextRoster = await getSectionRoster(school.schoolId, section.sectionId);
-      setRoster(nextRoster);
-    } catch (loadError) {
-      console.error("Unable to load roster", loadError);
-      setRosterError("Unable to load roster.");
+      await removeStudentFromSection({
+        role,
+        school,
+        section: selectedRosterSection,
+        student,
+        user,
+      });
+      setMessage(`${student.studentName || "Student"} was removed from the roster.`);
+      setMessageTone("success");
+    } catch (error) {
+      console.error("Roster removal failed", error);
+      setRosterError("Unable to remove student from roster.");
     } finally {
-      setIsLoadingRoster(false);
+      setRemovingStudentUid("");
     }
   }
 
+  if (testSession) {
+    return (
+      <MathCurriculumView
+        role={role}
+        school={school}
+        section={testSession.section}
+        testStudent={testSession.student}
+        user={user}
+        onBack={() => setTestSession(null)}
+        onExitTestMode={() => setTestSession(null)}
+      />
+    );
+  }
+
+  if (previewSection) {
+    return (
+      <MathCurriculumView
+        role={role}
+        school={school}
+        section={previewSection}
+        user={user}
+        onBack={() => setPreviewSection(null)}
+      />
+    );
+  }
+
+  if (liveMonitorSection) {
+    return (
+      <MathCurriculumView
+        role={role}
+        school={school}
+        section={liveMonitorSection}
+        startInLiveMonitor
+        user={user}
+        onBack={() => setLiveMonitorSection(null)}
+      />
+    );
+  }
+
+  function selectSection(section) {
+    setSelectedRosterSection(section);
+    setShowSelectedRoster(false);
+
+    if (section.curriculumId === "math") {
+      setPreviewSection(section);
+    }
+  }
+
+  function closeSelectedSection() {
+    setSelectedRosterSection(null);
+    setShowSelectedRoster(false);
+  }
+
   return (
-    <section className="dashboard-panel">
-      <div className="section-header">
-        <div>
-          <p className="eyebrow">Teacher tools</p>
-          <h2>My Class Sections</h2>
+    <>
+      <section className="card dashboard-card">
+        <div className="section-heading-row">
+          <div>
+            <h2>Create Section</h2>
+            <p className="helper-copy">
+              Create a period, attach Math, and share the generated class code.
+            </p>
+          </div>
         </div>
-      </div>
 
-      {message ? <p className="success-message">{message}</p> : null}
-      {error ? <p className="error-message">{error}</p> : null}
+        {message ? (
+          <p className={`status-message ${messageTone}`}>{message}</p>
+        ) : null}
 
-      <CreateSectionForm isSaving={isSaving} onCreate={handleCreateSection} />
+        <form className="section-form" onSubmit={handleCreateSection}>
+          <label>
+            Course Name
+            <input
+              autoComplete="off"
+              onChange={(event) => updateSectionField("courseName", event.target.value)}
+              placeholder="Math"
+              value={sectionForm.courseName}
+            />
+          </label>
+          <label>
+            Period
+            <input
+              autoComplete="off"
+              onChange={(event) => updateSectionField("period", event.target.value)}
+              placeholder="2"
+              value={sectionForm.period}
+            />
+          </label>
+          <label>
+            Curriculum Package
+            <select
+              onChange={(event) => updateSectionField("curriculumId", event.target.value)}
+              value={sectionForm.curriculumId}
+            >
+              <option value="">Select curriculum</option>
+              {curriculumPackages.map((curriculum) => (
+                <option key={curriculum.curriculumId} value={curriculum.curriculumId}>
+                  {curriculum.title}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button className="primary-button" disabled={isSaving} type="submit">
+            {isSaving ? "Creating..." : "Create Section"}
+          </button>
+        </form>
+      </section>
 
-      <div className="split-layout">
-        <div>
-          <div className="section-subheader">
-            <h3>Created sections</h3>
-            {isLoadingSections ? <span>Loading...</span> : null}
+      <section className="card dashboard-card">
+        <div className="section-heading-row">
+          <div>
+            <p className="eyebrow">Class codes & rosters</p>
+            <h2>Active Sections</h2>
+          </div>
+        </div>
+
+        {loadError ? <p className="error-message">{loadError}</p> : null}
+
+        {isLoading ? (
+          <p className="muted-message">Loading sections...</p>
+        ) : sortedSections.length ? (
+          <div className="teacher-section-grid">
+            {sortedSections.map((section) => {
+              const sectionId = section.sectionId || section.id;
+              const isActive =
+                (selectedRosterSection?.sectionId || selectedRosterSection?.id) === sectionId;
+              const period = String(section.period || "").trim();
+              const periodLabel = period.toLowerCase().startsWith("period")
+                ? period
+                : `Period ${period || "--"}`;
+
+              return (
+                <button
+                  className={`teacher-section-card ${isActive ? "active" : ""}`}
+                  key={sectionId}
+                  onClick={() => selectSection(section)}
+                  type="button"
+                >
+                  <div className="teacher-section-card-banner">
+                    <span>{periodLabel}</span>
+                  </div>
+                  <div className="teacher-section-card-body">
+                    <h3>{section.sectionName}</h3>
+                    <p>{section.courseName || "Course not named"}</p>
+                    <dl className="teacher-section-card-details">
+                      <div>
+                        <dt>Curriculum</dt>
+                        <dd>{section.curriculumTitle || "Not assigned"}</dd>
+                      </div>
+                      <div>
+                        <dt>Code</dt>
+                        <dd>{section.classCode || "--"}</dd>
+                      </div>
+                    </dl>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="muted-message">No active sections yet.</p>
+        )}
+      </section>
+
+      {selectedRosterSection ? (
+        <section className="card dashboard-card">
+          <div className="section-heading-row">
+            <div>
+              <p className="eyebrow">Selected section</p>
+              <h2>Selected Section: {selectedRosterSection.sectionName}</h2>
+              <p className="helper-copy">
+                {selectedRosterSection.curriculumTitle || "No curriculum assigned"}
+              </p>
+            </div>
+            <button
+              className="secondary-button fit-button"
+              onClick={closeSelectedSection}
+              type="button"
+            >
+              Close section
+            </button>
           </div>
 
-          {!isLoadingSections && sections.length === 0 ? (
-            <p className="empty-state">No class sections created yet.</p>
+          <div className="button-row selected-section-actions">
+            {selectedRosterSection.curriculumId === "math" ? (
+              <button
+                className="secondary-button fit-button"
+                onClick={() => setPreviewSection(selectedRosterSection)}
+                type="button"
+              >
+                Curriculum
+              </button>
+            ) : null}
+            {selectedRosterSection.curriculumId === "math" ? (
+              <button
+                className="secondary-button fit-button"
+                onClick={() => setLiveMonitorSection(selectedRosterSection)}
+                type="button"
+              >
+                Live Monitor
+              </button>
+            ) : null}
+            <button
+              className="secondary-button fit-button"
+              onClick={() => setShowSelectedRoster((current) => !current)}
+              type="button"
+            >
+              {showSelectedRoster ? "Hide roster" : "View roster"}
+            </button>
+          </div>
+
+          {showSelectedRoster ? (
+            <div className="selected-roster-panel">
+              {rosterError ? <p className="error-message">{rosterError}</p> : null}
+
+              {roster.length ? (
+                <div className="roster-list">
+                  {roster.map((student) => (
+                    <article className="roster-row" key={student.studentUid}>
+                      <div>
+                        <strong>{student.studentName || "Student"}</strong>
+                        <span>{student.studentEmail || student.studentUid}</span>
+                      </div>
+                      <button
+                        className="danger-button fit-button"
+                        disabled={removingStudentUid === student.studentUid}
+                        onClick={() => handleRemoveStudent(student)}
+                        type="button"
+                      >
+                        {removingStudentUid === student.studentUid
+                          ? "Removing..."
+                          : "Remove"}
+                      </button>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <p className="muted-message">No students have joined this section yet.</p>
+              )}
+
+              {selectedRosterSection.curriculumId === "math" ? (
+                <DemoRosterPanel
+                  role={role}
+                  school={school}
+                  section={selectedRosterSection}
+                  user={user}
+                  onTestAsStudent={(student) =>
+                    setTestSession({ section: selectedRosterSection, student })
+                  }
+                />
+              ) : null}
+            </div>
           ) : null}
-
-          <div className="item-grid">
-            {sections.map((section) => (
-              <TeacherSectionCard
-                isSelected={selectedSection?.sectionId === section.sectionId}
-                key={section.sectionId}
-                onViewRoster={handleViewRoster}
-                section={section}
-              />
-            ))}
-          </div>
-        </div>
-
-        <SectionRoster
-          error={rosterError}
-          isLoading={isLoadingRoster}
-          roster={roster}
-          section={selectedSection}
-        />
-      </div>
-    </section>
+        </section>
+      ) : null}
+    </>
   );
 }

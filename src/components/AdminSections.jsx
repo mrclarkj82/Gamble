@@ -1,105 +1,139 @@
 import { useEffect, useState } from "react";
-import { getAdminSections } from "../services/sections";
+import {
+  subscribeActiveRosterCount,
+  subscribeAdminSections,
+} from "../services/sections";
 
 function formatDate(value) {
-  if (!value || typeof value.toDate !== "function") {
-    return "Just now";
+  if (value && typeof value.toDate === "function") {
+    return value.toDate().toLocaleDateString();
   }
 
-  return value.toDate().toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  return "Pending";
 }
 
-export default function AdminSections({ school }) {
+export default function AdminSections({ role, school, user }) {
   const [sections, setSections] = useState([]);
+  const [rosterCounts, setRosterCounts] = useState({});
+  const [rosterCountErrors, setRosterCountErrors] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    let isMounted = true;
+    if (!school) return undefined;
 
-    async function loadSections() {
-      setIsLoading(true);
-      setError("");
+    setIsLoading(true);
+    return subscribeAdminSections(
+      school,
+      (nextSections) => {
+        setSections(nextSections);
+        setError("");
+        setIsLoading(false);
+      },
+      (loadError) => {
+        console.error("Admin sections failed to load", loadError);
+        setError("Unable to load school sections.");
+        setIsLoading(false);
+      },
+    );
+  }, [school]);
 
-      try {
-        const adminSections = await getAdminSections(school.schoolId);
-
-        if (isMounted) {
-          setSections(adminSections);
-        }
-      } catch (loadError) {
-        console.error("Unable to load admin sections", loadError);
-
-        if (isMounted) {
-          setError("Unable to load school sections.");
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
-      }
+  useEffect(() => {
+    if (!school || !sections.length) {
+      setRosterCounts({});
+      setRosterCountErrors({});
+      return undefined;
     }
 
-    loadSections();
+    setRosterCounts({});
+    setRosterCountErrors({});
 
-    return () => {
-      isMounted = false;
-    };
-  }, [school.schoolId]);
+    const unsubscribes = sections.map((section) => {
+      const sectionId = section.sectionId || section.id;
+
+      return subscribeActiveRosterCount(
+        school,
+        section,
+        (count) => {
+          setRosterCounts((current) => ({ ...current, [sectionId]: count }));
+          setRosterCountErrors((current) => {
+            const next = { ...current };
+            delete next[sectionId];
+            return next;
+          });
+        },
+        () => {
+          setRosterCountErrors((current) => ({ ...current, [sectionId]: true }));
+        },
+      );
+    });
+
+    return () => unsubscribes.forEach((unsubscribe) => unsubscribe());
+  }, [school, sections]);
+
+  function getRosterCountLabel(section) {
+    const sectionId = section.sectionId || section.id;
+
+    if (rosterCountErrors[sectionId]) return "--";
+    if (rosterCounts[sectionId] === undefined) return "...";
+    return rosterCounts[sectionId];
+  }
 
   return (
-    <section className="dashboard-panel">
-      <div className="section-header">
+    <section className="card dashboard-card">
+      <div className="section-heading-row">
         <div>
           <p className="eyebrow">Admin overview</p>
           <h2>School Sections</h2>
+          <p className="helper-copy">
+            Active class sections and their attached curriculum packages.
+          </p>
         </div>
-        {isLoading ? <span className="subtle-badge">Loading...</span> : null}
       </div>
 
       {error ? <p className="error-message">{error}</p> : null}
 
-      {!isLoading && sections.length === 0 ? (
-        <p className="empty-state">No active sections have been created yet.</p>
-      ) : null}
-
-      <div className="admin-section-list">
-        {sections.map((section) => (
-          <article className="admin-section-row" key={section.sectionId}>
-            <div>
-              <p className="eyebrow">{section.classCode}</p>
-              <h3>{section.sectionName}</h3>
-              <p>{section.courseName}</p>
-            </div>
-            <dl className="admin-details">
+      {isLoading ? (
+        <p className="muted-message">Loading sections...</p>
+      ) : sections.length ? (
+        <div className="admin-section-list">
+          {sections.map((section) => (
+            <article className="admin-section-row" key={section.sectionId || section.id}>
               <div>
-                <dt>Teacher</dt>
-                <dd>{section.teacherName}</dd>
+                <p className="eyebrow">{section.classCode}</p>
+                <h3>{section.sectionName}</h3>
+                <p>{section.courseName}</p>
               </div>
               <div>
-                <dt>Email</dt>
-                <dd>{section.teacherEmail}</dd>
+                <span>Teacher</span>
+                <strong>{section.teacherName}</strong>
               </div>
               <div>
-                <dt>Period</dt>
-                <dd>{section.period}</dd>
+                <span>Email</span>
+                <strong>{section.teacherEmail}</strong>
               </div>
               <div>
-                <dt>Students</dt>
-                <dd>{section.studentCount || 0}</dd>
+                <span>Period</span>
+                <strong>{section.period}</strong>
               </div>
               <div>
-                <dt>Created</dt>
-                <dd>{formatDate(section.createdAt)}</dd>
+                <span>Students</span>
+                <strong>{getRosterCountLabel(section)}</strong>
               </div>
-            </dl>
-          </article>
-        ))}
-      </div>
+              <div>
+                <span>Curriculum</span>
+                <strong>{section.curriculumTitle || "None"}</strong>
+              </div>
+              <div>
+                <span>Created</span>
+                <strong>{formatDate(section.createdAt)}</strong>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <p className="muted-message">No active sections have been created yet.</p>
+      )}
     </section>
   );
 }

@@ -1,30 +1,31 @@
 # Doral Red Rock School Hub
 
-This is a static Vite + React web app backed by Firebase Authentication and Cloud Firestore.
+Static Vite + React app for the Doral Red Rock student, teacher, and admin gateway.
 
-## Version 1
+## What This Version Does
 
-Version 1 built the secure entry gate:
+- Uses Firebase Google Authentication.
+- Detects role from the signed-in Google email.
+- Verifies the Doral Red Rock school code.
+- Creates or updates `users/{uid}` profiles in Firestore.
+- Lets admin switch between Admin view and Teacher view.
+- Lets teachers create class sections with generated class codes.
+- Lets teachers attach the pre-built Math curriculum to a section.
+- Lets teachers create actual Math assignments from the pre-built curriculum.
+- Generates problem previews and answer keys before assigning work.
+- Lets teachers/admin preview the exact student-facing work list and assignment runner for a section without creating student submissions.
+- Lets teachers/admin generate demo rosters and test a Math section as a selected demo student.
+- Saves demo submissions separately from real student submissions so grades and resubmission flows can be tested safely.
+- Lets teachers/admin open a Live Monitor for a selected Math assignment and see roster progress in real time.
+- Lets students join sections by class code.
+- Lets students open Math curriculum only through joined sections.
+- Lets students start and submit assigned Math work.
+- Lets teachers view rosters and remove students from a roster.
+- Lets admin view all active sections and attached curriculum.
 
-- Google sign-in with Firebase Authentication.
-- Role detection from the signed-in email address.
-- School-code verification through Firestore.
-- User profile creation/update in `users/{uid}`.
-- Placeholder dashboards for students, teachers, and admin.
+## What Is Not Built Yet
 
-## Version 2
-
-Version 2 adds class sections and class codes:
-
-- Teachers can create class sections.
-- Each section gets a readable class code with a Firestore reservation document to prevent collisions.
-- Students can join active sections with class codes.
-- Students see joined classes on their dashboard.
-- Teachers see their section list and can open rosters.
-- Admin can see all active sections for the school.
-- Admin can switch between the Admin dashboard and Teacher dashboard tools.
-
-Version 2 still does not include curriculum packages, assignments, house points, Google Classroom sync, live student monitoring, gradebook, teacher approval workflows, parent accounts, Clever, or Infinite Campus integration.
+This version intentionally does not include an advanced curriculum builder, a full gradebook, house points, Google Classroom sync, device/browser surveillance, Clever sync, Infinite Campus sync, parent accounts, or teacher-created curriculum from scratch. It does include basic generated-problem assignments, student submissions, and in-app assignment progress monitoring.
 
 ## Accepted Accounts
 
@@ -32,7 +33,7 @@ Version 2 still does not include curriculum packages, assignments, house points,
 - Students: any email ending in `@student.doralacademynv.org`
 - Teachers: any email ending in `@doralacademynv.org`
 
-Admin detection runs first, so `joseph.clark@doralacademynv.org` becomes `admin`, not `teacher`.
+Admin detection runs first, so `joseph.clark@doralacademynv.org` becomes `admin`, not `teacher`. Inside the dashboard, the admin account can switch between Admin view and Teacher view.
 
 ## Install
 
@@ -46,7 +47,7 @@ npm install
 npm run dev
 ```
 
-Vite usually serves the app at `http://localhost:5173`.
+Vite will print a local URL, usually `http://localhost:5173`.
 
 ## Build
 
@@ -54,51 +55,32 @@ Vite usually serves the app at `http://localhost:5173`.
 npm run build
 ```
 
-The static production build is created in `dist/`.
-
-## Deploy to Firebase
-
-This repo includes `.firebaserc` and `firebase.json` for project `gamble-714a3`.
-
-```bash
-npm run build
-npx firebase-tools deploy --only hosting,firestore
-```
-
-`firestore` deploys both `firestore.rules` and `firestore.indexes.json`.
-
-Live hosting URL:
-
-```text
-https://gamble-714a3.web.app
-```
+The production build is created in `dist/`.
 
 ## Firebase Config
 
-The Firebase web app config is in `src/firebase.js`.
+The Firebase web app config lives in `src/firebase.js` and currently points at project `gamble-714a3`.
 
-Use only Firebase web app config values in the frontend. Do not paste service-account keys into this project.
+Only the Firebase web client config belongs in this file. Do not add service-account keys or Firebase Admin SDK credentials to the frontend.
 
-## Firebase Console Setup
+## Firebase Authentication
 
-1. Enable Google Authentication in Firebase Console.
-2. Add authorized domains for local and deployed testing:
+In Firebase Console:
+
+1. Open Authentication.
+2. Enable Google as a sign-in provider.
+3. Add these authorized domains:
    - `localhost`
-   - `gamble-714a3.web.app`
-   - any GitHub Pages domain you choose to use later
-3. Create Firestore in native mode.
-4. Create the school document below if it does not already exist.
-5. Deploy or paste the rules from `firestore.rules`.
+   - your Firebase Hosting domain
+   - any GitHub Pages domain you use for testing
 
-## School Document
+## Required Firestore Documents
 
-Path:
+Create or seed this school document:
 
 ```text
 schools/doral-red-rock
 ```
-
-Fields:
 
 ```json
 {
@@ -111,70 +93,31 @@ Fields:
 }
 ```
 
-## Teacher Workflow
+Create or seed this pre-built curriculum package:
 
-Teachers sign in, verify the school code, and use **My Class Sections** on the teacher dashboard.
+```text
+schools/doral-red-rock/curriculumPackages/math
+```
 
-They enter:
+```json
+{
+  "curriculumId": "math",
+  "title": "Math",
+  "subject": "Mathematics",
+  "description": "Pre-built Math curriculum.",
+  "gradeLevel": "General",
+  "active": true,
+  "isPrebuilt": true,
+  "createdAt": "server timestamp",
+  "updatedAt": "server timestamp"
+}
+```
 
-- Course Name
-- Period
-
-The app generates:
-
-- `sectionName`, for example `Digital Game Development - Period 3`
-- `classCode`, for example `CLARK-DGD-P3-7K2Q9`
-
-Creating a section writes:
-
-- `schools/{schoolId}/sections/{sectionId}`
-- `users/{teacherUid}/sections/{sectionId}`
-- `schools/{schoolId}/classCodes/{classCode}`
-
-The `classCodes` document is a Version 2 helper index used to reserve each generated code.
-
-## Student Workflow
-
-Students sign in, verify the school code, and use **My Classes** on the student dashboard.
-
-They enter a class code. The app normalizes it to uppercase, finds the matching active section in their school, and enrolls them immediately with `status: "active"`.
-
-Joining a class writes:
-
-- `schools/{schoolId}/sections/{sectionId}/enrollments/{studentUid}`
-- `users/{studentUid}/sections/{sectionId}`
-- increments `studentCount` on the section
-
-Duplicate joins are blocked by checking both the user section reference and the enrollment document.
-
-## Admin Workflow
-
-The admin dashboard shows **School Sections**, a read-only overview of active sections for the admin's `schoolId`.
-
-Admin can see:
-
-- Section name
-- Teacher name
-- Teacher email
-- Course name
-- Period
-- Class code
-- Student count
-- Created date
-
-The admin account also has an admin-only dashboard switch for **Admin view** and **Teacher view**. Teacher view lets the admin create personal teacher sections and view rosters using the same section tools teachers use, while the underlying signed-in role remains `admin`.
+The app also keeps a small code-first registry in `src/services/curriculum.js` so the dropdown works even before a full curriculum management system exists.
 
 ## Firestore Structure
 
-```text
-schools/{schoolId}
-  name
-  schoolCode
-  allowedStudentDomain
-  allowedTeacherDomain
-  active
-  createdAt
-```
+Sections:
 
 ```text
 schools/{schoolId}/sections/{sectionId}
@@ -187,11 +130,37 @@ schools/{schoolId}/sections/{sectionId}
   period
   sectionName
   classCode
+  classCodeUpper
   active
   createdAt
   updatedAt
   studentCount
+  studentUids
+  curriculumId
+  curriculumTitle
+  curriculumSubject
 ```
+
+Admin Overview computes the displayed `Students` count live from active section
+enrollments plus active demo roster entries. The stored `studentCount` field is
+kept for real enrollment bookkeeping, but it is not trusted as the only source
+when demo/test students exist.
+
+Class code lookup:
+
+```text
+schools/{schoolId}/classCodes/{classCode}
+  classCode
+  classCodeUpper
+  sectionId
+  schoolId
+  active
+  teacherUid
+  curriculumId
+  createdAt
+```
+
+Enrollments:
 
 ```text
 schools/{schoolId}/sections/{sectionId}/enrollments/{studentUid}
@@ -202,8 +171,10 @@ schools/{schoolId}/sections/{sectionId}/enrollments/{studentUid}
   joinedAt
 ```
 
+User section references:
+
 ```text
-users/{studentUid}/sections/{sectionId}
+users/{uid}/sections/{sectionId}
   sectionId
   schoolId
   courseName
@@ -214,72 +185,233 @@ users/{studentUid}/sections/{sectionId}
   teacherEmail
   classCode
   roleInSection
-  joinedAt
+  curriculumId
+  curriculumTitle
+  curriculumSubject
+  joinedAt or createdAt
+  status or active
+```
+
+Assigned work:
+
+```text
+schools/{schoolId}/sections/{sectionId}/assignments/{assignmentId}
+  assignmentId
+  schoolId
+  sectionId
+  sectionName
+  course
+  courseName
+  period
+  subject
+  curriculumId
+  curriculumTitle
+  curriculumSubject
+  assignmentType
+  title
+  directions
+  problemCount
+  dueDate
+  feedbackMode
+  maxAttempts
+  timeLimitMinutes
+  active
+  teacherUid
+  teacherName
+  teacherEmail
+  createdAt
+  updatedAt
+```
+
+Student submissions:
+
+```text
+schools/{schoolId}/sections/{sectionId}/assignments/{assignmentId}/submissions/{studentUid}
+  assignmentId
+  assignmentTitle
+  sectionId
+  schoolId
+  studentUid
+  studentName
+  studentEmail
+  answers
+  correctCount
+  score
+  problemCount
+  percent
+  gradePercent
   status
+  attemptNumber
+  maxAttempts
+  attempts
+  feedback
+  resubmissionAllowed
+  resubmissionDueDate
+  submittedAt
+  updatedAt
 ```
 
-```text
-users/{teacherUid}/sections/{sectionId}
-  sectionId
-  schoolId
-  courseName
-  period
-  sectionName
-  teacherUid
-  teacherName
-  teacherEmail
-  classCode
-  roleInSection
-  createdAt
-  active
-```
+Demo roster entries:
 
 ```text
-schools/{schoolId}/classCodes/{classCode}
-  classCode
-  sectionId
+schools/{schoolId}/sections/{sectionId}/demoStudents/{demoStudentId}
+  demoStudentId
+  firstName
+  lastName
+  displayName
+  email
   schoolId
-  teacherUid
-  active
+  sectionId
+  status
+  isDemo
   createdAt
+  createdByUid
+  updatedAt
 ```
+
+Demo submissions:
+
+```text
+schools/{schoolId}/sections/{sectionId}/assignments/{assignmentId}/demoSubmissions/{demoStudentId}
+  assignmentId
+  assignmentTitle
+  schoolId
+  sectionId
+  demoStudentId
+  demoStudentName
+  demoStudentEmail
+  isDemo
+  submittedByTeacherUid
+  submittedByTeacherEmail
+  answers
+  score
+  gradePercent
+  status
+  attemptNumber
+  maxAttempts
+  attempts
+  feedback
+  resubmissionAllowed
+  resubmissionDueDate
+  submittedAt
+  updatedAt
+```
+
+Assignment progress for Live Monitor:
+
+```text
+schools/{schoolId}/sections/{sectionId}/assignments/{assignmentId}/progress/{studentKey}
+  schoolId
+  sectionId
+  assignmentId
+  studentUid or demoStudentId
+  studentName
+  studentEmail
+  isDemo
+  status
+  answeredCount
+  totalProblems
+  progressPercent
+  openedAt
+  lastActivityAt
+  submittedAt
+  attemptNumber
+  score
+  gradePercent
+  resubmissionAllowed
+  needsResubmission
+  updatedAt
+```
+
+`studentKey` is the real Firebase Auth UID for real students and the demo
+student ID for demo/test students. Student Preview does not write progress.
 
 ## Firestore Rules
 
-The included `firestore.rules` file enforces the Version 1 gate and Version 2 section access:
+Rules are in `firestore.rules`.
 
-- Users can read/write only their own top-level user profile.
-- Users can read only their own `users/{uid}/sections` documents.
-- Teachers and admin can create sections only for their own authenticated UID.
-- Teachers can read only sections they own.
-- Teachers can read rosters only for sections they own.
-- Students can create only their own enrollment documents.
-- Students can create only their own user section references.
-- Students can increment `studentCount` only as part of an enrollment transaction.
-- Admin can read all active sections in their own school.
-- Frontend users cannot edit school documents.
+They allow:
 
-Practical Version 2 limitation: students may read active section documents in their own school because Firestore rules must allow the class-code lookup query. The UI only exposes joining by class code.
+- Users to read and write their own profile.
+- Authenticated Doral users to read active school documents.
+- School members to read active sections in their school.
+- Teachers and admin to create sections for their own account.
+- Students to join sections only inside their own school.
+- Students to create their own enrollment and user-section reference.
+- Teachers to read rosters for sections they own.
+- Teachers to remove students from rosters they own.
+- Teachers to create assignments for sections they own.
+- Students to read assignments only through enrolled sections.
+- Students to submit their own assignment work.
+- Students to create/update only their own assignment progress documents.
+- Teachers/admin to create demo students only for sections they own or administer.
+- Teachers/admin to save demo submissions only under `demoSubmissions`, not real student UID paths.
+- Teachers/admin to read assignment progress and submissions for sections they own or administer.
+- Teachers/admin to create/update demo progress only for sections they own or administer.
+- Teachers/admin to review submissions and open resubmission without creating real student submissions.
+- Teachers/admin to reset or clear assignment submissions only for sections they own or administer.
+- Students cannot delete or clear assignment submission documents.
+- Admin to read all sections in the admin school.
+- Admin to manage curriculum package documents.
 
-## Testing
+Known limitation: active section metadata is readable by authenticated users in the same school. The class code is still required to enroll, and students cannot assign curriculum or create sections.
 
-Teacher:
+Deploy rules:
 
-1. Sign in with an email ending in `@doralacademynv.org`.
-2. Enter school code `DRR2026`.
-3. Create a section from **My Class Sections**.
+```bash
+npx firebase-tools deploy --only firestore:rules --project gamble-714a3
+```
+
+## Deploy Hosting
+
+Build and deploy the static app to Firebase Hosting:
+
+```bash
+npm run build
+npx firebase-tools deploy --only hosting --project gamble-714a3
+```
+
+This project includes `.firebaserc` and `firebase.json` configured for `gamble-714a3`.
+
+## How To Test
+
+Teacher/admin:
+
+1. Sign in as `joseph.clark@doralacademynv.org`.
+2. Use the Teacher view tab.
+3. Create a section with Course Name `Math`, Period `2`, Curriculum Package `Math`.
 4. Copy the generated class code.
-5. Open the section roster.
+5. Click the section name in Active Sections.
+6. Open Preview curriculum from the selected section tools.
+7. Click Assignment Setup to choose a topic, problem count, due date, feedback, attempts, and time limit.
+8. Preview generated problems and answers.
+9. Click Assign Work To Section.
+10. Click Student Preview to see what a demo student sees for that exact section.
+11. Open an assignment as Demo Student and use Demo Submit to grade locally without writing a submission.
+12. Return to the teacher dashboard, click the section name, open View roster, and generate a demo roster.
+13. Click Test as Student for a demo student.
+14. Submit assigned work in Teacher Test Mode.
+15. Exit test mode, click the section name, open Live Monitor, and select the assignment.
+16. Confirm the monitor shows real and demo roster students with Waiting, Started, Working, Submitted, or Graded style statuses.
+17. Use Test as Student again, answer problems, and confirm Live Monitor updates progress after refresh or automatically.
+18. Exit test mode, then open Grade Assignment on the assignment card.
+19. Confirm the Roster table shows Student, Status, Score, Grade, Answered, Submitted, Work, and Reset.
+20. Click View Work to see the student's answers, answer key, feedback field, and resubmission controls.
+21. Add feedback or click Allow Resubmission.
+22. Re-enter as the same demo student and resubmit.
+23. Use row Reset for one submission, or Clear All Submissions to clear only the selected assignment.
+24. Open the roster and use Remove when a real student needs to be deleted from that roster.
 
 Student:
 
-1. Sign in with an email ending in `@student.doralacademynv.org`.
-2. Enter school code `DRR2026`.
-3. Paste the teacher's class code into **My Classes**.
-4. Confirm the class appears and duplicate joins are blocked.
+1. Sign in with an approved `@student.doralacademynv.org` account.
+2. Enter school code `DRR2026` if prompted.
+3. Join with the teacher's class code.
+4. Open the Math curriculum from the joined class card.
+5. Start assigned work and submit answers.
 
 Admin:
 
 1. Sign in as `joseph.clark@doralacademynv.org`.
-2. Enter school code `DRR2026`.
-3. Confirm active sections appear in **School Sections**.
+2. Use Admin view.
+3. Confirm active sections show teacher, period, class code, student count, and curriculum.

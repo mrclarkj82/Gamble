@@ -1,10 +1,11 @@
 import {
+  arrayRemove,
+  arrayUnion,
   collection,
   doc,
   getDoc,
-  getDocs,
   increment,
-  limit,
+  onSnapshot,
   query,
   runTransaction,
   serverTimestamp,
@@ -26,15 +27,36 @@ function cleanText(value = "") {
   return String(value).trim().replace(/\s+/g, " ");
 }
 
+function readSnapshot(snapshot) {
+  return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
+}
+
+function timestampMillis(value) {
+  if (value && typeof value.toMillis === "function") return value.toMillis();
+  return 0;
+}
+
+function sortNewest(items) {
+  return [...items].sort(
+    (left, right) => timestampMillis(right.createdAt) - timestampMillis(left.createdAt),
+  );
+}
+
 function getInitials(value) {
-  const words = cleanText(value)
+  const initials = cleanText(value)
     .split(" ")
     .filter(Boolean)
-    .slice(0, 4);
+    .slice(0, 4)
+    .map((word) => word[0])
+    .join("")
+    .toUpperCase();
 
-  const initials = words.map((word) => word[0]).join("").toUpperCase();
+  return initials || "CLASS";
+}
 
-  return initials || "CLS";
+function getPeriodCode(period) {
+  const cleanPeriod = cleanText(period).replace(/[^a-z0-9]/gi, "").toUpperCase();
+  return cleanPeriod.startsWith("P") ? cleanPeriod : `P${cleanPeriod || "X"}`;
 }
 
 function getTeacherCodeName(teacherName) {
@@ -42,12 +64,7 @@ function getTeacherCodeName(teacherName) {
   return (parts.at(-1) || "TEACHER").replace(/[^a-z0-9]/gi, "").toUpperCase();
 }
 
-function getPeriodCode(period) {
-  const cleaned = cleanText(period).replace(/[^a-z0-9]/gi, "").toUpperCase();
-  return cleaned.startsWith("P") ? cleaned : `P${cleaned || "X"}`;
-}
-
-function randomCodePart(length = 6) {
+function randomCodePart(length = 4) {
   const randomValues = new Uint32Array(length);
   crypto.getRandomValues(randomValues);
 
@@ -56,55 +73,142 @@ function randomCodePart(length = 6) {
     .join("");
 }
 
+function getSchoolId(school) {
+  return school?.schoolId || school?.id || "doral-red-rock";
+}
+
+function sectionCollection(schoolId) {
+  return collection(db, "schools", schoolId, "sections");
+}
+
+function enrollmentCollection(schoolId, sectionId) {
+  return collection(db, "schools", schoolId, "sections", sectionId, "enrollments");
+}
+
+function demoStudentCollection(schoolId, sectionId) {
+  return collection(db, "schools", schoolId, "sections", sectionId, "demoStudents");
+}
+
 export function normalizeClassCode(code) {
   return cleanText(code).toUpperCase();
 }
 
 export function generateSectionName(courseName, period) {
-  const cleanCourseName = cleanText(courseName);
-  const cleanPeriod = cleanText(period);
-  const periodLabel = cleanPeriod.toLowerCase().startsWith("period")
-    ? cleanPeriod
-    : `Period ${cleanPeriod}`;
+  const periodText = cleanText(period);
+  const periodLabel = periodText.toLowerCase().startsWith("period")
+    ? periodText
+    : `Period ${periodText}`;
 
-  return `${cleanCourseName} - ${periodLabel}`;
+  return `${cleanText(courseName)} - ${periodLabel}`;
 }
 
 export function generateClassCode(courseName, period, teacherName) {
-  const teacherPart = getTeacherCodeName(teacherName).slice(0, 8);
-  const coursePart = getInitials(courseName).slice(0, 5);
-  const periodPart = getPeriodCode(period).slice(0, 6);
-
-  return `${teacherPart}-${coursePart}-${periodPart}-${randomCodePart()}`;
-}
-
-function timestampToMillis(value) {
-  if (!value) return 0;
-  if (typeof value.toMillis === "function") return value.toMillis();
-  return 0;
-}
-
-function sortByNewest(items, field = "createdAt") {
-  return [...items].sort(
-    (left, right) => timestampToMillis(right[field]) - timestampToMillis(left[field]),
+  return normalizeClassCode(
+    `${getTeacherCodeName(teacherName).slice(0, 8)}-${getInitials(courseName).slice(
+      0,
+      5,
+    )}-${getPeriodCode(period).slice(0, 6)}-${randomCodePart()}`,
   );
 }
 
-function sectionFromDoc(sectionDoc) {
-  return {
-    sectionId: sectionDoc.id,
-    ...sectionDoc.data(),
+export function subscribeTeacherSections(school, teacherUid, onNext, onError) {
+  const schoolId = getSchoolId(school);
+  const sectionsQuery = query(
+    sectionCollection(schoolId),
+    where("teacherUid", "==", teacherUid),
+    where("active", "==", true),
+  );
+
+  return onSnapshot(
+    sectionsQuery,
+    (snapshot) => onNext(sortNewest(readSnapshot(snapshot))),
+    onError,
+  );
+}
+
+export function subscribeAdminSections(school, onNext, onError) {
+  const schoolId = getSchoolId(school);
+  const sectionsQuery = query(sectionCollection(schoolId), where("active", "==", true));
+
+  return onSnapshot(
+    sectionsQuery,
+    (snapshot) => onNext(sortNewest(readSnapshot(snapshot))),
+    onError,
+  );
+}
+
+export function subscribeStudentSections(studentUid, onNext, onError) {
+  return onSnapshot(
+    collection(db, "users", studentUid, "sections"),
+    (snapshot) => onNext(sortNewest(readSnapshot(snapshot))),
+    onError,
+  );
+}
+
+export function subscribeSectionRoster(school, sectionId, onNext, onError) {
+  const schoolId = getSchoolId(school);
+
+  return onSnapshot(
+    enrollmentCollection(schoolId, sectionId),
+    (snapshot) => onNext(sortNewest(readSnapshot(snapshot))),
+    onError,
+  );
+}
+
+export function subscribeActiveRosterCount(school, section, onNext, onError) {
+  const schoolId = getSchoolId(school);
+  const sectionId = section?.sectionId || section?.id;
+
+  if (!schoolId || !sectionId) return () => {};
+
+  const counts = {
+    demo: null,
+    real: null,
+  };
+
+  function emitWhenReady() {
+    if (counts.demo === null || counts.real === null) return;
+    onNext(counts.demo + counts.real);
+  }
+
+  function handleError(error) {
+    console.warn("Unable to load active roster count", { error, sectionId });
+    if (onError) onError(error);
+  }
+
+  const unsubscribeEnrollments = onSnapshot(
+    query(enrollmentCollection(schoolId, sectionId), where("status", "==", "active")),
+    (snapshot) => {
+      counts.real = snapshot.size;
+      emitWhenReady();
+    },
+    handleError,
+  );
+
+  const unsubscribeDemoStudents = onSnapshot(
+    query(demoStudentCollection(schoolId, sectionId), where("status", "==", "active")),
+    (snapshot) => {
+      counts.demo = snapshot.size;
+      emitWhenReady();
+    },
+    handleError,
+  );
+
+  return () => {
+    unsubscribeEnrollments();
+    unsubscribeDemoStudents();
   };
 }
 
 export async function createSection({
   courseName,
+  curriculumPackage,
   period,
   role,
-  schoolId,
-  teacherUser,
+  school,
+  user,
 }) {
-  if (role !== "teacher" && role !== "admin") {
+  if (!user || (role !== "teacher" && role !== "admin")) {
     throw new SectionError("teacher-only", "Only teachers can create sections.");
   }
 
@@ -112,86 +216,92 @@ export async function createSection({
   const cleanPeriod = cleanText(period);
 
   if (!cleanCourseName || !cleanPeriod) {
-    throw new SectionError(
-      "missing-fields",
-      "Course name and period are required.",
-    );
+    throw new SectionError("missing-fields", "Enter a course name and period.");
   }
 
-  const teacherName = teacherUser.displayName || teacherUser.email || "Teacher";
-  const teacherEmail = (teacherUser.email || "").toLowerCase();
+  if (!curriculumPackage?.curriculumId) {
+    throw new SectionError("missing-curriculum", "Please select a curriculum package.");
+  }
+
+  const schoolId = getSchoolId(school);
+  const teacherName = user.displayName || user.email || "Teacher";
+  const teacherEmail = user.email || "";
   const sectionName = generateSectionName(cleanCourseName, cleanPeriod);
 
   for (let attempt = 0; attempt < 8; attempt += 1) {
-    const sectionRef = doc(collection(db, "schools", schoolId, "sections"));
+    const sectionRef = doc(sectionCollection(schoolId));
     const sectionId = sectionRef.id;
-    const classCode = normalizeClassCode(
-      generateClassCode(cleanCourseName, cleanPeriod, teacherName),
-    );
+    const classCode = generateClassCode(cleanCourseName, cleanPeriod, teacherName);
     const codeRef = doc(db, "schools", schoolId, "classCodes", classCode);
-    const teacherSectionRef = doc(db, "users", teacherUser.uid, "sections", sectionId);
+    const teacherSectionRef = doc(db, "users", user.uid, "sections", sectionId);
 
-    const result = await runTransaction(db, async (transaction) => {
-      const existingCode = await transaction.get(codeRef);
+    const createdSection = await runTransaction(db, async (transaction) => {
+      const codeSnapshot = await transaction.get(codeRef);
 
-      if (existingCode.exists()) {
-        return null;
-      }
+      if (codeSnapshot.exists()) return null;
 
-      const section = {
+      const sectionPayload = {
         sectionId,
         schoolId,
-        teacherUid: teacherUser.uid,
+        teacherUid: user.uid,
         teacherName,
         teacherEmail,
         courseName: cleanCourseName,
         period: cleanPeriod,
         sectionName,
         classCode,
+        classCodeUpper: classCode,
         active: true,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         studentCount: 0,
+        studentUids: [],
+        curriculumId: curriculumPackage.curriculumId,
+        curriculumTitle: curriculumPackage.title,
+        curriculumSubject: curriculumPackage.subject,
       };
 
-      const teacherSection = {
+      const teacherSectionPayload = {
         sectionId,
         schoolId,
         courseName: cleanCourseName,
         period: cleanPeriod,
         sectionName,
-        teacherUid: teacherUser.uid,
+        teacherUid: user.uid,
         teacherName,
         teacherEmail,
         classCode,
+        classCodeUpper: classCode,
         roleInSection: "teacher",
+        curriculumId: curriculumPackage.curriculumId,
+        curriculumTitle: curriculumPackage.title,
+        curriculumSubject: curriculumPackage.subject,
         createdAt: serverTimestamp(),
         active: true,
       };
 
-      const codeReservation = {
+      transaction.set(sectionRef, sectionPayload);
+      transaction.set(teacherSectionRef, teacherSectionPayload);
+      transaction.set(codeRef, {
         classCode,
+        classCodeUpper: classCode,
         sectionId,
         schoolId,
-        teacherUid: teacherUser.uid,
         active: true,
+        teacherUid: user.uid,
+        curriculumId: curriculumPackage.curriculumId,
         createdAt: serverTimestamp(),
-      };
-
-      transaction.set(sectionRef, section);
-      transaction.set(teacherSectionRef, teacherSection);
-      transaction.set(codeRef, codeReservation);
+      });
 
       return {
-        ...section,
+        ...sectionPayload,
+        id: sectionId,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
     });
 
-    if (result) {
-      return result;
-    }
+    if (createdSection) return createdSection;
   }
 
   throw new SectionError(
@@ -200,52 +310,8 @@ export async function createSection({
   );
 }
 
-export async function getTeacherSections(schoolId, teacherUid) {
-  const sectionsQuery = query(
-    collection(db, "schools", schoolId, "sections"),
-    where("teacherUid", "==", teacherUid),
-  );
-
-  const snapshot = await getDocs(sectionsQuery);
-  return sortByNewest(snapshot.docs.map(sectionFromDoc), "createdAt");
-}
-
-export async function getAdminSections(schoolId) {
-  const sectionsQuery = query(
-    collection(db, "schools", schoolId, "sections"),
-    where("active", "==", true),
-  );
-
-  const snapshot = await getDocs(sectionsQuery);
-  return sortByNewest(snapshot.docs.map(sectionFromDoc), "createdAt");
-}
-
-export async function getStudentSections(studentUid) {
-  const snapshot = await getDocs(collection(db, "users", studentUid, "sections"));
-  return sortByNewest(snapshot.docs.map(sectionFromDoc), "joinedAt");
-}
-
-export async function getSectionRoster(schoolId, sectionId) {
-  const rosterSnapshot = await getDocs(
-    collection(db, "schools", schoolId, "sections", sectionId, "enrollments"),
-  );
-
-  return sortByNewest(
-    rosterSnapshot.docs.map((studentDoc) => ({
-      studentUid: studentDoc.id,
-      ...studentDoc.data(),
-    })),
-    "joinedAt",
-  );
-}
-
-export async function joinSectionByCode({
-  classCode,
-  role,
-  schoolId,
-  studentUser,
-}) {
-  if (role !== "student") {
+export async function joinSectionByCode({ classCode, role, school, user }) {
+  if (!user || role !== "student") {
     throw new SectionError("student-only", "Only students can join sections.");
   }
 
@@ -255,21 +321,17 @@ export async function joinSectionByCode({
     throw new SectionError("invalid-code", "Invalid class code.");
   }
 
-  const sectionsQuery = query(
-    collection(db, "schools", schoolId, "sections"),
-    where("classCode", "==", normalizedCode),
-    where("active", "==", true),
-    limit(1),
+  const schoolId = getSchoolId(school);
+  const codeSnapshot = await getDoc(
+    doc(db, "schools", schoolId, "classCodes", normalizedCode),
   );
 
-  const sectionSnapshot = await getDocs(sectionsQuery);
-
-  if (sectionSnapshot.empty) {
+  if (!codeSnapshot.exists() || codeSnapshot.data().active !== true) {
     throw new SectionError("invalid-code", "Invalid class code.");
   }
 
-  const sectionRef = sectionSnapshot.docs[0].ref;
-  const sectionId = sectionRef.id;
+  const sectionId = codeSnapshot.data().sectionId;
+  const sectionRef = doc(db, "schools", schoolId, "sections", sectionId);
   const enrollmentRef = doc(
     db,
     "schools",
@@ -277,21 +339,20 @@ export async function joinSectionByCode({
     "sections",
     sectionId,
     "enrollments",
-    studentUser.uid,
+    user.uid,
   );
-  const userSectionRef = doc(db, "users", studentUser.uid, "sections", sectionId);
+  const userSectionRef = doc(db, "users", user.uid, "sections", sectionId);
 
   return runTransaction(db, async (transaction) => {
-    const currentSection = await transaction.get(sectionRef);
+    const sectionSnapshot = await transaction.get(sectionRef);
+    const enrollmentSnapshot = await transaction.get(enrollmentRef);
+    const userSectionSnapshot = await transaction.get(userSectionRef);
 
-    if (!currentSection.exists() || currentSection.data().active !== true) {
+    if (!sectionSnapshot.exists() || sectionSnapshot.data().active !== true) {
       throw new SectionError("invalid-code", "Invalid class code.");
     }
 
-    const existingUserSection = await transaction.get(userSectionRef);
-    const existingEnrollment = await transaction.get(enrollmentRef);
-
-    if (existingUserSection.exists() || existingEnrollment.exists()) {
+    if (enrollmentSnapshot.exists() || userSectionSnapshot.exists()) {
       throw new SectionError(
         "already-enrolled",
         "You are already enrolled in this section.",
@@ -299,14 +360,18 @@ export async function joinSectionByCode({
     }
 
     const section = {
-      sectionId,
-      ...currentSection.data(),
+      id: sectionSnapshot.id,
+      ...sectionSnapshot.data(),
     };
 
+    if (section.schoolId !== schoolId) {
+      throw new SectionError("invalid-code", "Invalid class code.");
+    }
+
     const enrollment = {
-      studentUid: studentUser.uid,
-      studentName: studentUser.displayName || studentUser.email || "Student",
-      studentEmail: studentUser.email || "",
+      studentUid: user.uid,
+      studentName: user.displayName || user.email || "Student",
+      studentEmail: user.email || "",
       status: "active",
       joinedAt: serverTimestamp(),
     };
@@ -314,22 +379,27 @@ export async function joinSectionByCode({
     const userSection = {
       sectionId,
       schoolId,
-      courseName: section.courseName,
-      period: section.period,
-      sectionName: section.sectionName,
+      courseName: section.courseName || "",
+      period: section.period || "",
+      sectionName: section.sectionName || "",
       teacherUid: section.teacherUid,
-      teacherName: section.teacherName,
-      teacherEmail: section.teacherEmail,
+      teacherName: section.teacherName || "Teacher",
+      teacherEmail: section.teacherEmail || "",
       classCode: section.classCode,
+      classCodeUpper: section.classCodeUpper || section.classCode,
       roleInSection: "student",
       joinedAt: serverTimestamp(),
       status: "active",
+      curriculumId: section.curriculumId || "",
+      curriculumTitle: section.curriculumTitle || "",
+      curriculumSubject: section.curriculumSubject || "",
     };
 
     transaction.set(enrollmentRef, enrollment);
     transaction.set(userSectionRef, userSection);
     transaction.update(sectionRef, {
       studentCount: increment(1),
+      studentUids: arrayUnion(user.uid),
       updatedAt: serverTimestamp(),
     });
 
@@ -337,5 +407,46 @@ export async function joinSectionByCode({
       ...userSection,
       joinedAt: new Date(),
     };
+  });
+}
+
+export async function removeStudentFromSection({ role, school, section, student, user }) {
+  if (!user || !section || !student?.studentUid) return;
+
+  const isOwner = section.teacherUid === user.uid;
+
+  if (role !== "admin" && !isOwner) {
+    throw new SectionError(
+      "teacher-only",
+      "Only teachers can remove students from their rosters.",
+    );
+  }
+
+  const schoolId = getSchoolId(school);
+  const sectionId = section.sectionId || section.id;
+  const sectionRef = doc(db, "schools", schoolId, "sections", sectionId);
+  const enrollmentRef = doc(
+    db,
+    "schools",
+    schoolId,
+    "sections",
+    sectionId,
+    "enrollments",
+    student.studentUid,
+  );
+  const userSectionRef = doc(db, "users", student.studentUid, "sections", sectionId);
+
+  await runTransaction(db, async (transaction) => {
+    const enrollmentSnapshot = await transaction.get(enrollmentRef);
+
+    if (!enrollmentSnapshot.exists()) return;
+
+    transaction.delete(enrollmentRef);
+    transaction.delete(userSectionRef);
+    transaction.update(sectionRef, {
+      studentCount: increment(-1),
+      studentUids: arrayRemove(student.studentUid),
+      updatedAt: serverTimestamp(),
+    });
   });
 }
