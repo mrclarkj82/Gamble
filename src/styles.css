@@ -467,13 +467,13 @@ h2 {
 
 .teacher-section-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr));
+  gap: 22px;
 }
 
 .teacher-section-card {
   display: flex;
-  min-height: 188px;
+  min-height: 270px;
   overflow: hidden;
   flex-direction: column;
   border: 1px solid var(--border);
@@ -504,11 +504,11 @@ h2 {
 .teacher-section-card-banner {
   display: flex;
   align-items: flex-end;
-  min-height: 76px;
+  min-height: 118px;
   background:
     linear-gradient(135deg, rgba(141, 38, 52, 0.96), rgba(29, 95, 82, 0.92)),
     #8d2634;
-  padding: 16px;
+  padding: 22px;
 }
 
 .teacher-section-card-banner span {
@@ -523,27 +523,28 @@ h2 {
 .teacher-section-card-body {
   display: grid;
   flex: 1;
-  gap: 12px;
-  padding: 16px;
+  gap: 16px;
+  padding: 22px;
 }
 
 .teacher-section-card-body h3 {
   margin: 0;
   color: var(--ink);
-  font-size: 1.15rem;
+  font-size: 1.35rem;
   line-height: 1.18;
 }
 
 .teacher-section-card-body p {
   margin: -6px 0 0;
   color: var(--muted);
+  font-size: 1rem;
   line-height: 1.35;
 }
 
 .teacher-section-card-details {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 16px;
   margin: 0;
 }
 
