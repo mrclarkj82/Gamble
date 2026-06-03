@@ -960,9 +960,9 @@ h2 {
 }
 
 .monitor-tile-top {
-  display: flex;
+  display: grid;
   align-items: flex-start;
-  justify-content: space-between;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
 }
 
@@ -977,10 +977,14 @@ h2 {
 }
 
 .monitor-tile .status-pill {
+  max-width: 112px;
   min-width: 0;
   padding: 5px 9px;
   font-size: 0.74rem;
-  white-space: nowrap;
+  line-height: 1.12;
+  overflow-wrap: anywhere;
+  text-align: center;
+  white-space: normal;
 }
 
 .monitor-progress-bar {
