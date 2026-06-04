@@ -2,11 +2,13 @@ import { useEffect, useState } from "react";
 import {
   getAvailableCurriculumPackages,
   getCurriculumLabel,
+  isEnglishCurriculum,
 } from "../services/curriculum";
 import {
   subscribeActiveRosterCount,
   subscribeAdminSections,
 } from "../services/sections";
+import CurriculumView from "./CurriculumView";
 import SourceLibrary from "./SourceLibrary";
 
 function formatDate(value) {
@@ -23,6 +25,7 @@ export default function AdminSections({ role, school, user }) {
   const [rosterCountErrors, setRosterCountErrors] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [inspectedCurriculum, setInspectedCurriculum] = useState(null);
   const curriculumPackages = getAvailableCurriculumPackages();
 
   useEffect(() => {
@@ -85,6 +88,26 @@ export default function AdminSections({ role, school, user }) {
     return rosterCounts[sectionId];
   }
 
+  if (inspectedCurriculum) {
+    return (
+      <CurriculumView
+        role={role}
+        school={school}
+        section={{
+          sectionId: "admin-english-1-preview",
+          schoolId: school?.schoolId || school?.id || "doral-red-rock",
+          sectionName: "English 1 Admin Preview",
+          teacherName: user?.displayName || "Admin",
+          curriculumId: inspectedCurriculum.curriculumId,
+          curriculumTitle: inspectedCurriculum.title,
+          curriculumSubject: inspectedCurriculum.subject,
+        }}
+        user={user}
+        onBack={() => setInspectedCurriculum(null)}
+      />
+    );
+  }
+
   return (
     <>
       <section className="card dashboard-card">
@@ -104,6 +127,15 @@ export default function AdminSections({ role, school, user }) {
               <p className="eyebrow">{curriculum.subject}</p>
               <h3>{getCurriculumLabel(curriculum)}</h3>
               <p>{curriculum.description}</p>
+              {isEnglishCurriculum(curriculum.curriculumId) ? (
+                <button
+                  className="secondary-button fit-button"
+                  onClick={() => setInspectedCurriculum(curriculum)}
+                  type="button"
+                >
+                  Scope & Sequence
+                </button>
+              ) : null}
             </article>
           ))}
         </div>

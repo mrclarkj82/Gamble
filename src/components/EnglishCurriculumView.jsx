@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ENGLISH_1_COURSE } from "../data/englishCurriculum";
+import EnglishScopeSequenceView from "./EnglishScopeSequenceView";
 import SourceLibrary from "./SourceLibrary";
 
 function SkillTags({ skills }) {
@@ -107,7 +108,15 @@ function AssignmentTypeCard({ assignmentType }) {
   );
 }
 
-function EnglishShellContent({ role, school, section, studentMode = false, user }) {
+function EnglishShellContent({
+  includeAssignmentTypes = true,
+  includeSourceLibrary = false,
+  role,
+  school,
+  section,
+  studentMode = false,
+  user,
+}) {
   const course = ENGLISH_1_COURSE;
 
   return (
@@ -134,26 +143,30 @@ function EnglishShellContent({ role, school, section, studentMode = false, user 
 
       {!studentMode ? (
         <>
-          <SourceLibrary compact role={role} school={school} user={user} />
+          {includeSourceLibrary ? (
+            <SourceLibrary compact role={role} school={school} user={user} />
+          ) : null}
 
-          <section className="curriculum-library">
-            <div>
-              <p className="eyebrow">Assignment placeholders</p>
-              <h3>English Assignment Types</h3>
-              <p className="helper-copy">
-                These are metadata placeholders only. Assignment creation for English will
-                be added in a later version.
-              </p>
-            </div>
-            <div className="curriculum-grid">
-              {course.assignmentTypes.map((assignmentType) => (
-                <AssignmentTypeCard
-                  assignmentType={assignmentType}
-                  key={assignmentType.typeId}
-                />
-              ))}
-            </div>
-          </section>
+          {includeAssignmentTypes ? (
+            <section className="curriculum-library">
+              <div>
+                <p className="eyebrow">Assignment placeholders</p>
+                <h3>English Assignment Types</h3>
+                <p className="helper-copy">
+                  These are metadata placeholders only. Assignment creation for English
+                  will be added in a later version.
+                </p>
+              </div>
+              <div className="curriculum-grid">
+                {course.assignmentTypes.map((assignmentType) => (
+                  <AssignmentTypeCard
+                    assignmentType={assignmentType}
+                    key={assignmentType.typeId}
+                  />
+                ))}
+              </div>
+            </section>
+          ) : null}
         </>
       ) : (
         <p className="muted-message">No English 1 assignments have been assigned yet.</p>
@@ -164,6 +177,7 @@ function EnglishShellContent({ role, school, section, studentMode = false, user 
 
 export default function EnglishCurriculumView({ onBack, role, school, section, user }) {
   const [showStudentPreview, setShowStudentPreview] = useState(false);
+  const [activeTab, setActiveTab] = useState("scope");
   const canPreview = role === "teacher" || role === "admin";
 
   if (!section) {
@@ -207,13 +221,60 @@ export default function EnglishCurriculumView({ onBack, role, school, section, u
         </div>
       </div>
 
-      <EnglishShellContent
-        role={role}
-        school={school}
-        section={section}
-        studentMode={!canPreview}
-        user={user}
-      />
+      {canPreview ? (
+        <div className="course-tab-row" aria-label="English 1 course tools">
+          <button
+            className={activeTab === "scope" ? "active" : ""}
+            onClick={() => setActiveTab("scope")}
+            type="button"
+          >
+            Scope & Sequence
+          </button>
+          <button
+            className={activeTab === "overview" ? "active" : ""}
+            onClick={() => setActiveTab("overview")}
+            type="button"
+          >
+            Course Shell
+          </button>
+          <button
+            className={activeTab === "resources" ? "active" : ""}
+            onClick={() => setActiveTab("resources")}
+            type="button"
+          >
+            Source Library
+          </button>
+        </div>
+      ) : null}
+
+      {!canPreview ? (
+        <>
+          <CourseDetails course={ENGLISH_1_COURSE} section={section} />
+          <p className="status-message success">
+            Your English 1 lessons and assignments will appear here when your
+            teacher assigns them.
+          </p>
+          <EnglishScopeSequenceView studentMode />
+        </>
+      ) : null}
+
+      {canPreview && activeTab === "scope" ? (
+        <EnglishScopeSequenceView />
+      ) : null}
+
+      {canPreview && activeTab === "overview" ? (
+        <EnglishShellContent
+          includeAssignmentTypes
+          role={role}
+          school={school}
+          section={section}
+          user={user}
+        />
+      ) : null}
+
+      {canPreview && activeTab === "resources" ? (
+        <SourceLibrary compact role={role} school={school} user={user} />
+      ) : null}
 
       {showStudentPreview ? (
         <div className="preview-modal-backdrop" role="presentation">
@@ -240,13 +301,12 @@ export default function EnglishCurriculumView({ onBack, role, school, section, u
               </button>
             </div>
 
-            <EnglishShellContent
-              role={role}
-              school={school}
-              section={section}
-              studentMode
-              user={user}
-            />
+            <CourseDetails course={ENGLISH_1_COURSE} section={section} />
+            <p className="status-message success">
+              Your English 1 lessons and assignments will appear here when your
+              teacher assigns them.
+            </p>
+            <EnglishScopeSequenceView studentMode />
           </section>
         </div>
       ) : null}

@@ -14,6 +14,7 @@ Static Vite + React app for the Doral Red Rock student, teacher, and admin gatew
 - Includes Algebra 1 / Math as the existing generated-problem course.
 - Adds an English 1 / Freshman English course shell with course metadata, units, lesson placeholders, and assignment type placeholders.
 - Adds an English 1 Source Library for copyright-safe resource metadata, source links, license notes, attribution, approval status, and link-only vs embeddable usage tracking.
+- Adds an English 1 Scope & Sequence with full-year pacing, six units, standards tags, lesson placeholders, assignment placeholders, and Source Library resource slots.
 - Lets admin manage English 1 source-library records and lets teachers view approved resources or submit needs-review suggestions.
 - Lets teachers create actual Math assignments from the pre-built curriculum.
 - Generates problem previews and answer keys before assigning work.
@@ -141,7 +142,29 @@ schools/doral-red-rock/curriculumPackages/english-1
 }
 ```
 
-The app also keeps a small code-first registry in `src/services/curriculum.js` so the dropdown works even before a full curriculum management system exists. Version 6.0 stores the English 1 shell as static React data in `src/data/englishCurriculum.js`; it does not require Firestore writes.
+The app also keeps a small code-first registry in `src/services/curriculum.js` so the dropdown works even before a full curriculum management system exists. Version 6.2 stores the English 1 shell and Scope & Sequence as static React data in `src/data/englishCurriculum.js` and `src/data/englishScopeSequence.js`; it does not require Firestore writes.
+
+## English 1 Scope & Sequence
+
+Version 6.2 adds a static English 1 course map. Teachers/admin can open an English 1 section and use the `Scope & Sequence` tab. Admin can also open `Scope & Sequence` from the Available Curriculum card in Admin view.
+
+The scope data includes:
+
+- Course overview, course length, recommended weeks, and course goals.
+- Full-year pacing: Unit 1 four weeks, Unit 2 six weeks, Unit 3 six weeks, Unit 4 five weeks, Unit 5 seven weeks, Unit 6 six weeks, plus two flex/review/assessment weeks.
+- Six ordered units:
+  - Close Reading Foundations.
+  - Short Stories and Literary Elements.
+  - Informational Text and Rhetoric.
+  - Poetry and Figurative Language.
+  - Argument Writing and Research.
+  - Drama and Shakespeare Foundations.
+- Standards strands and lightweight standards tags such as `RL.9-10.1`, `RI.9-10.2`, `W.9-10.1`, `SL.9-10.1`, and `L.9-10.4`.
+- Lesson placeholders with objectives, estimated minutes, strands, skill tags, standards tags, teacher notes, and placeholder status.
+- Assignment placeholders with type, purpose, suggested points, future rubric/live-monitoring metadata, resubmission support, and source requirements.
+- Source Library resource slots that describe allowed license types and whether link-only or embeddable resources can be used.
+
+The Scope & Sequence is a planning blueprint only. It does not add full readings, copyrighted passages, worksheets, annotation tools, English assignment creation, English submissions, or English live monitoring.
 
 ## English 1 Source Library
 
@@ -520,12 +543,22 @@ English 1 shell:
 2. Use Teacher view.
 3. Create a section with Course Name `English 1`, Period `3`, Curriculum Package `English 1 (Freshman English)`.
 4. Click the section card in Active Sections.
-5. Confirm the English 1 shell opens and shows course metadata, six units, placeholder lessons, and English assignment type placeholders.
-6. Confirm the Source Library section appears for teacher/admin users.
-7. Confirm approved resources and link-only labels are visible.
-8. Click Student Preview and confirm the student-facing shell shows the friendly empty state without source-management controls.
-9. Confirm no copyrighted reading content appears.
-10. Return to an Algebra 1 section and confirm Math assignments, grading, and Live Monitor still open.
+5. Confirm the English 1 shell opens on the `Scope & Sequence` tab.
+6. Confirm the full-year pacing guide shows 36 total weeks.
+7. Expand each unit and confirm goals, essential questions, focus skills, lesson placeholders, assignment placeholders, resource slots, and standards tags appear.
+8. Open `Source Library` and confirm approved resources and link-only labels are visible.
+9. Click Student Preview and confirm the student-facing roadmap is simplified and does not show source-management controls, teacher notes, or standards-heavy planning metadata.
+10. Confirm no copyrighted reading content appears.
+11. Return to an Algebra 1 section and confirm Math assignments, grading, and Live Monitor still open.
+
+Admin Scope & Sequence:
+
+1. Sign in as `joseph.clark@doralacademynv.org`.
+2. Use Admin view.
+3. In Available Curriculum, click `Scope & Sequence` on English 1.
+4. Confirm the English 1 Scope & Sequence opens.
+5. Confirm all six units appear in order and can be expanded.
+6. Confirm Source Library still opens from the English 1 tabs.
 
 English 1 Source Library:
 

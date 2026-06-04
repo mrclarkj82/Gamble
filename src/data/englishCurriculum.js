@@ -1,3 +1,10 @@
+import {
+  englishPacingGuide,
+  englishScopeUnits,
+  englishStandardsFramework,
+  englishStandardsTags,
+} from "./englishScopeSequence";
+
 export const englishAssignmentTypes = [
   {
     typeId: "reading-check",
@@ -184,7 +191,7 @@ export const englishAssignmentTypes = [
   },
 ];
 
-export const englishUnits = [
+const legacyEnglishUnits = [
   {
     unitId: "close-reading-foundations",
     title: "Close Reading Foundations",
@@ -429,6 +436,8 @@ export const englishUnits = [
   },
 ];
 
+export const englishUnits = englishScopeUnits;
+
 export const ENGLISH_1_COURSE = {
   curriculumId: "english-1",
   courseId: "english-1",
@@ -436,11 +445,25 @@ export const ENGLISH_1_COURSE = {
   alternateTitle: "Freshman English",
   subject: "English Language Arts",
   subjectKey: "english",
-  gradeLevel: "Grade 9 / Freshman",
+  gradeLevel: "Grade 9",
+  courseLength: "Full Year",
+  recommendedWeeks: 36,
   description:
-    "A freshman English course focused on close reading, literary analysis, informational text, writing, vocabulary, grammar, discussion, and evidence-based responses.",
+    "English 1 is a freshman English course focused on close reading, literary analysis, informational text, writing, language conventions, academic vocabulary, discussion, and evidence-based responses.",
+  courseGoals: [
+    "Students will read literary and informational texts closely.",
+    "Students will cite strong textual evidence in writing and discussion.",
+    "Students will analyze theme, central idea, character, structure, rhetoric, and author's craft.",
+    "Students will write short responses, paragraphs, arguments, explanations, and longer essays.",
+    "Students will build grammar, vocabulary, speaking, listening, and revision skills.",
+    "Students will use copyright-safe, public-domain, open-license, or link-only resources.",
+  ],
   active: true,
   isPrebuilt: true,
+  pacingGuide: englishPacingGuide,
+  standardsFramework: englishStandardsFramework,
+  standardsTags: englishStandardsTags,
+  scopeUnits: englishScopeUnits,
   units: englishUnits,
   assignmentTypes: englishAssignmentTypes,
 };
