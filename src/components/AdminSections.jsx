@@ -7,6 +7,7 @@ import {
   subscribeActiveRosterCount,
   subscribeAdminSections,
 } from "../services/sections";
+import SourceLibrary from "./SourceLibrary";
 
 function formatDate(value) {
   if (value && typeof value.toDate === "function") {
@@ -107,6 +108,8 @@ export default function AdminSections({ role, school, user }) {
           ))}
         </div>
       </section>
+
+      <SourceLibrary role={role} school={school} user={user} />
 
       <section className="card dashboard-card">
       <div className="section-heading-row">

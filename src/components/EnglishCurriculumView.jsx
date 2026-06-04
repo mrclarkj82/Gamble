@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ENGLISH_1_COURSE } from "../data/englishCurriculum";
+import SourceLibrary from "./SourceLibrary";
 
 function SkillTags({ skills }) {
   return (
@@ -106,7 +107,7 @@ function AssignmentTypeCard({ assignmentType }) {
   );
 }
 
-function EnglishShellContent({ section, studentMode = false }) {
+function EnglishShellContent({ role, school, section, studentMode = false, user }) {
   const course = ENGLISH_1_COURSE;
 
   return (
@@ -132,24 +133,28 @@ function EnglishShellContent({ section, studentMode = false }) {
       </section>
 
       {!studentMode ? (
-        <section className="curriculum-library">
-          <div>
-            <p className="eyebrow">Assignment placeholders</p>
-            <h3>English Assignment Types</h3>
-            <p className="helper-copy">
-              These are metadata placeholders only. Assignment creation for English will
-              be added in a later version.
-            </p>
-          </div>
-          <div className="curriculum-grid">
-            {course.assignmentTypes.map((assignmentType) => (
-              <AssignmentTypeCard
-                assignmentType={assignmentType}
-                key={assignmentType.typeId}
-              />
-            ))}
-          </div>
-        </section>
+        <>
+          <SourceLibrary compact role={role} school={school} user={user} />
+
+          <section className="curriculum-library">
+            <div>
+              <p className="eyebrow">Assignment placeholders</p>
+              <h3>English Assignment Types</h3>
+              <p className="helper-copy">
+                These are metadata placeholders only. Assignment creation for English will
+                be added in a later version.
+              </p>
+            </div>
+            <div className="curriculum-grid">
+              {course.assignmentTypes.map((assignmentType) => (
+                <AssignmentTypeCard
+                  assignmentType={assignmentType}
+                  key={assignmentType.typeId}
+                />
+              ))}
+            </div>
+          </section>
+        </>
       ) : (
         <p className="muted-message">No English 1 assignments have been assigned yet.</p>
       )}
@@ -157,7 +162,7 @@ function EnglishShellContent({ section, studentMode = false }) {
   );
 }
 
-export default function EnglishCurriculumView({ onBack, role, section }) {
+export default function EnglishCurriculumView({ onBack, role, school, section, user }) {
   const [showStudentPreview, setShowStudentPreview] = useState(false);
   const canPreview = role === "teacher" || role === "admin";
 
@@ -202,7 +207,13 @@ export default function EnglishCurriculumView({ onBack, role, section }) {
         </div>
       </div>
 
-      <EnglishShellContent section={section} studentMode={!canPreview} />
+      <EnglishShellContent
+        role={role}
+        school={school}
+        section={section}
+        studentMode={!canPreview}
+        user={user}
+      />
 
       {showStudentPreview ? (
         <div className="preview-modal-backdrop" role="presentation">
@@ -229,7 +240,13 @@ export default function EnglishCurriculumView({ onBack, role, section }) {
               </button>
             </div>
 
-            <EnglishShellContent section={section} studentMode />
+            <EnglishShellContent
+              role={role}
+              school={school}
+              section={section}
+              studentMode
+              user={user}
+            />
           </section>
         </div>
       ) : null}

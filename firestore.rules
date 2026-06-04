@@ -343,6 +343,111 @@ service cloud.firestore {
         );
     }
 
+    function sourceResourceFieldsAreAllowed(schoolId, sourceId) {
+      return request.resource.data.keys().hasOnly([
+        "sourceId",
+        "schoolId",
+        "courseId",
+        "subject",
+        "title",
+        "author",
+        "providerName",
+        "providerType",
+        "resourceType",
+        "sourceUrl",
+        "canonicalUrl",
+        "gradeBand",
+        "recommendedGradeLevel",
+        "unitFit",
+        "skillTags",
+        "textType",
+        "licenseType",
+        "licenseName",
+        "licenseUrl",
+        "copyrightStatus",
+        "publicDomainUS",
+        "canLink",
+        "canEmbed",
+        "canModify",
+        "requiresAttribution",
+        "attributionText",
+        "usageNotes",
+        "restrictions",
+        "approvalStatus",
+        "reviewedByUid",
+        "reviewedAt",
+        "createdByUid",
+        "createdAt",
+        "updatedByUid",
+        "updatedAt",
+        "active"
+      ])
+      && request.resource.data.sourceId == sourceId
+      && request.resource.data.schoolId == schoolId
+      && request.resource.data.courseId == "english-1"
+      && request.resource.data.subject == "english"
+      && request.resource.data.title is string
+      && request.resource.data.providerName is string
+      && request.resource.data.sourceUrl is string
+      && request.resource.data.resourceType is string
+      && request.resource.data.licenseType in [
+        "public_domain",
+        "cc_by",
+        "cc_by_sa",
+        "cc_by_nc",
+        "cc_by_nc_sa",
+        "free_to_use_link_only",
+        "government_public_domain",
+        "unknown_needs_review"
+      ]
+      && request.resource.data.copyrightStatus in [
+        "public_domain_us",
+        "open_license",
+        "free_access_not_republishable",
+        "link_only",
+        "unknown",
+        "restricted"
+      ]
+      && request.resource.data.approvalStatus in [
+        "approved",
+        "needs_review",
+        "rejected"
+      ];
+    }
+
+    function sourceResourceEmbeddingRulesAreSafe() {
+      return (
+        request.resource.data.canEmbed == false
+      ) || (
+        request.resource.data.approvalStatus == "approved"
+        && request.resource.data.licenseType in [
+          "public_domain",
+          "government_public_domain",
+          "cc_by",
+          "cc_by_sa",
+          "cc_by_nc",
+          "cc_by_nc_sa"
+        ]
+        && !(request.resource.data.copyrightStatus in [
+          "free_access_not_republishable",
+          "link_only",
+          "restricted",
+          "unknown"
+        ])
+      );
+    }
+
+    function teacherSourceSuggestionIsAllowed(schoolId, sourceId) {
+      return isTeacherProfile()
+        && isSchoolMember(schoolId)
+        && sourceResourceFieldsAreAllowed(schoolId, sourceId)
+        && request.resource.data.createdByUid == request.auth.uid
+        && request.resource.data.updatedByUid == request.auth.uid
+        && request.resource.data.approvalStatus == "needs_review"
+        && request.resource.data.canEmbed == false
+        && request.resource.data.active == true;
+    }
+
     match /users/{userId} {
       allow read: if isSignedIn() && request.auth.uid == userId;
 
@@ -388,6 +493,40 @@ service cloud.firestore {
           && resource.data.active == true;
 
         allow create, update, delete: if isSectionAdmin(schoolId);
+      }
+
+      match /sourceLibrary/{sourceId} {
+        allow read: if isSignedIn()
+          && isSchoolMember(schoolId)
+          && (
+            isSectionAdmin(schoolId)
+            || (
+              resource.data.approvalStatus == "approved"
+            )
+            || (
+              isTeacherProfile()
+              && resource.data.createdByUid == request.auth.uid
+            )
+          );
+
+        allow create: if (
+          isSectionAdmin(schoolId)
+          && sourceResourceFieldsAreAllowed(schoolId, sourceId)
+          && sourceResourceEmbeddingRulesAreSafe()
+        ) || teacherSourceSuggestionIsAllowed(schoolId, sourceId);
+
+        allow update: if (
+          isSectionAdmin(schoolId)
+          && sourceResourceFieldsAreAllowed(schoolId, sourceId)
+          && sourceResourceEmbeddingRulesAreSafe()
+        ) || (
+          isTeacherProfile()
+          && resource.data.createdByUid == request.auth.uid
+          && resource.data.approvalStatus == "needs_review"
+          && teacherSourceSuggestionIsAllowed(schoolId, sourceId)
+        );
+
+        allow delete: if isSectionAdmin(schoolId);
       }
 
       match /classCodes/{classCode} {

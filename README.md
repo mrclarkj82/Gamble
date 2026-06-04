@@ -13,6 +13,8 @@ Static Vite + React app for the Doral Red Rock student, teacher, and admin gatew
 - Lets teachers attach pre-built course packages to a section.
 - Includes Algebra 1 / Math as the existing generated-problem course.
 - Adds an English 1 / Freshman English course shell with course metadata, units, lesson placeholders, and assignment type placeholders.
+- Adds an English 1 Source Library for copyright-safe resource metadata, source links, license notes, attribution, approval status, and link-only vs embeddable usage tracking.
+- Lets admin manage English 1 source-library records and lets teachers view approved resources or submit needs-review suggestions.
 - Lets teachers create actual Math assignments from the pre-built curriculum.
 - Generates problem previews and answer keys before assigning work.
 - Lets teachers/admin preview the exact student-facing work list and assignment runner for a section without creating student submissions.
@@ -28,7 +30,7 @@ Static Vite + React app for the Doral Red Rock student, teacher, and admin gatew
 
 ## What Is Not Built Yet
 
-This version intentionally does not include an advanced curriculum builder, full English readings or worksheets, English annotation tools, English assignment creation, a full gradebook, Google Classroom sync, device/browser surveillance, Clever sync, Infinite Campus sync, parent accounts, or teacher-created curriculum from scratch. It does include basic generated-problem Math assignments, student submissions, in-app Math assignment progress monitoring, and a static English 1 shell ready for future public-domain/free-resource content.
+This version intentionally does not include an advanced curriculum builder, full English readings or worksheets, English annotation tools, English assignment creation, English live monitoring, a full gradebook, Google Classroom sync, device/browser surveillance, Clever sync, Infinite Campus sync, parent accounts, or teacher-created curriculum from scratch. It does include basic generated-problem Math assignments, student submissions, in-app Math assignment progress monitoring, a static English 1 shell, and an English 1 source-library system for future public-domain/free-resource content.
 
 ## Accepted Accounts
 
@@ -140,6 +142,76 @@ schools/doral-red-rock/curriculumPackages/english-1
 ```
 
 The app also keeps a small code-first registry in `src/services/curriculum.js` so the dropdown works even before a full curriculum management system exists. Version 6.0 stores the English 1 shell as static React data in `src/data/englishCurriculum.js`; it does not require Firestore writes.
+
+## English 1 Source Library
+
+Version 6.1 adds a copyright-safe source-library system for English 1. Managed school records are stored in Firestore:
+
+```text
+schools/{schoolId}/sourceLibrary/{sourceId}
+```
+
+Source records store metadata only:
+
+```text
+sourceId
+schoolId
+courseId: "english-1"
+subject: "english"
+title
+author
+providerName
+providerType
+resourceType
+sourceUrl
+canonicalUrl
+gradeBand
+recommendedGradeLevel
+unitFit
+skillTags
+textType
+licenseType
+licenseName
+licenseUrl
+copyrightStatus
+publicDomainUS
+canLink
+canEmbed
+canModify
+requiresAttribution
+attributionText
+usageNotes
+restrictions
+approvalStatus
+reviewedByUid
+reviewedAt
+createdByUid
+createdAt
+updatedByUid
+updatedAt
+active
+```
+
+The app also includes static seed metadata in `src/data/sourceLibrarySeeds.js` so the library is useful before Firestore records exist. Seed records include:
+
+- Project Gutenberg.
+- Library of Congress.
+- National Archives / DocsTeach.
+- OpenStax Writing Guide with Handbook.
+- Purdue OWL as approved link-only guidance.
+- Teacher-added resource placeholder.
+
+These seed records do not include full text. They are provider/source guidance only.
+
+Copyright guardrails:
+
+- Do not store full text from copyrighted or link-only resources.
+- Unknown-license resources are forced to `needs_review` and cannot be embedded.
+- Link-only or free-access-not-republishable resources force `canEmbed: false`.
+- Embeddable resources require approval, a public-domain/government-public-domain/open license type, source URL, license details, and attribution when required.
+- Purdue OWL-style writing-reference resources should be linked from the original source, not copied into Gamble.
+
+Admin can add, edit, approve, reject, or deactivate source records. Teachers can view approved resources and submit suggested resources marked `needs_review`. Students do not get source-management controls.
 
 ## Course Packages
 
@@ -389,8 +461,12 @@ They allow:
 - Students cannot delete or clear assignment submission documents.
 - Admin to read all sections in the admin school.
 - Admin to manage curriculum package documents.
+- Admin to create, edit, approve, reject, deactivate, or delete English 1 source-library records for their school.
+- Teachers to read approved source-library records and submit their own needs-review resource suggestions.
+- Students to read approved source metadata only if a future UI exposes those records.
+- Students cannot create, edit, approve, reject, or delete source-library records.
 
-Known limitation: active section metadata is readable by authenticated users in the same school. The class code is still required to enroll, and students cannot assign curriculum or create sections.
+Known limitation: active section metadata is readable by authenticated users in the same school. The class code is still required to enroll, and students cannot assign curriculum or create sections. Source-library records are metadata-only; the rules do not inspect outside web pages, so license review still depends on admin approval and the app's form validation.
 
 Deploy rules:
 
@@ -418,7 +494,7 @@ Teacher/admin:
 3. Create a section with Course Name `Algebra 1`, Period `2`, Curriculum Package `Algebra 1 (Math)`.
 4. Copy the generated class code.
 5. Click the section name in Active Sections.
-6. Open Preview curriculum from the selected section tools.
+6. Open Curriculum from the selected section tools.
 7. Click Assignment Setup to choose a topic, problem count, due date, feedback, attempts, and time limit.
 8. Preview generated problems and answers.
 9. Click Assign Work To Section.
@@ -445,9 +521,26 @@ English 1 shell:
 3. Create a section with Course Name `English 1`, Period `3`, Curriculum Package `English 1 (Freshman English)`.
 4. Click the section card in Active Sections.
 5. Confirm the English 1 shell opens and shows course metadata, six units, placeholder lessons, and English assignment type placeholders.
-6. Click Student Preview and confirm the student-facing shell shows the friendly empty state.
-7. Confirm no copyrighted reading content appears.
-8. Return to an Algebra 1 section and confirm Math assignments, grading, and Live Monitor still open.
+6. Confirm the Source Library section appears for teacher/admin users.
+7. Confirm approved resources and link-only labels are visible.
+8. Click Student Preview and confirm the student-facing shell shows the friendly empty state without source-management controls.
+9. Confirm no copyrighted reading content appears.
+10. Return to an Algebra 1 section and confirm Math assignments, grading, and Live Monitor still open.
+
+English 1 Source Library:
+
+1. Sign in as `joseph.clark@doralacademynv.org`.
+2. Use Admin view.
+3. Open the English 1 Source Library area.
+4. Confirm seed metadata records appear for Project Gutenberg, Library of Congress, National Archives / DocsTeach, OpenStax, Purdue OWL, and the teacher-added placeholder.
+5. Add a resource with `License Type` set to `Unknown Needs Review`.
+6. Confirm it saves as `Needs Review` and cannot be embedded.
+7. Try to mark an unknown-license resource embeddable and confirm the app blocks or corrects it.
+8. Add a link-only writing reference and confirm `canLink` is true and `canEmbed` is false.
+9. Add a public-domain/open-license test resource with attribution/license information.
+10. Approve it and confirm it appears in approved resources.
+11. Sign in as a teacher or use Teacher view, open an English 1 section, and confirm approved resources are visible.
+12. Confirm students do not see add/edit/approve controls.
 
 Student:
 
