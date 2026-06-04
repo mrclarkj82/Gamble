@@ -399,6 +399,7 @@ function EnglishAssignmentRunner({
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState("success");
   const [demoResult, setDemoResult] = useState(null);
+  const [previewCheckCount, setPreviewCheckCount] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const texts = (assignment.textIds || []).map(getText).filter(Boolean);
 
@@ -495,7 +496,8 @@ function EnglishAssignmentRunner({
 
     if (previewMode) {
       setDemoResult(grading);
-      setMessage("Student Preview - answers are not saved.");
+      setPreviewCheckCount((current) => current + 1);
+      setMessage("Preview checked. Answers were scored locally and were not saved.");
       setMessageTone("success");
       setIsSubmitting(false);
       return;
@@ -555,7 +557,10 @@ function EnglishAssignmentRunner({
       </div>
 
       {previewMode ? (
-        <p className="preview-mode-banner">Student Preview - answers are not saved.</p>
+        <p className="preview-mode-banner">
+          Student Preview - answers are not saved. Use Test as Student from the
+          demo roster when you want to save a demo submission.
+        </p>
       ) : null}
       {testMode ? (
         <p className="test-mode-banner">
@@ -601,14 +606,6 @@ function EnglishAssignmentRunner({
           <p className="muted-message">{submission.feedback || "No feedback yet."}</p>
         </section>
       ) : null}
-      {demoResult ? (
-        <p className="status-message success">
-          Demo auto-score: {demoResult.autoScore} / {demoResult.autoPossible}. Preview
-          mode does not create submissions.
-        </p>
-      ) : null}
-      {message ? <p className={`status-message ${messageTone}`}>{message}</p> : null}
-
       {texts.map((text) => (
         <TextPreview key={text.textId} text={text} />
       ))}
@@ -628,24 +625,33 @@ function EnglishAssignmentRunner({
         ))}
       </div>
 
-      <button
-        className="primary-button submit-work-button"
-        disabled={isSubmitting || (!previewMode && Boolean(submission) && !canSubmit)}
-        onClick={handleSubmit}
-        type="button"
-      >
-        {isSubmitting
-          ? "Submitting..."
-          : previewMode
-            ? "Demo Submit"
-            : submission && canSubmit
-              ? "Resubmit Assignment"
-              : submission
-                ? "Already Submitted"
-                : testMode
-                  ? "Submit As Demo Student"
-                  : "Submit Assignment"}
-      </button>
+      <div className="submission-action-panel">
+        <button
+          className="primary-button submit-work-button"
+          disabled={isSubmitting || (!previewMode && Boolean(submission) && !canSubmit)}
+          onClick={handleSubmit}
+          type="button"
+        >
+          {isSubmitting
+            ? "Submitting..."
+            : previewMode
+              ? "Check Preview Answers"
+              : submission && canSubmit
+                ? "Resubmit Assignment"
+                : submission
+                  ? "Already Submitted"
+                  : testMode
+                    ? "Submit As Demo Student"
+                    : "Submit Assignment"}
+        </button>
+        {message ? <p className={`status-message ${messageTone}`}>{message}</p> : null}
+        {demoResult ? (
+          <p className="status-message success">
+            Preview check {previewCheckCount}: auto-score {demoResult.autoScore} /{" "}
+            {demoResult.autoPossible}. No Firestore submission was created.
+          </p>
+        ) : null}
+      </div>
     </section>
   );
 }
