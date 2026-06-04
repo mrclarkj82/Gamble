@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { getAvailableCurriculumPackages } from "../services/curriculum";
+import {
+  getAvailableCurriculumPackages,
+  getCurriculumLabel,
+  isMathCurriculum,
+} from "../services/curriculum";
 import {
   createSection,
   removeStudentFromSection,
@@ -7,6 +11,7 @@ import {
   subscribeSectionRoster,
   subscribeTeacherSections,
 } from "../services/sections";
+import CurriculumView from "./CurriculumView";
 import DemoRosterPanel from "./DemoRosterPanel";
 import MathCurriculumView from "./MathCurriculumView";
 
@@ -175,7 +180,7 @@ export default function TeacherSections({ role, school, user }) {
 
   if (previewSection) {
     return (
-      <MathCurriculumView
+      <CurriculumView
         role={role}
         school={school}
         section={previewSection}
@@ -202,7 +207,7 @@ export default function TeacherSections({ role, school, user }) {
     setSelectedRosterSection(section);
     setShowSelectedRoster(false);
 
-    if (section.curriculumId === "math") {
+    if (section.curriculumId) {
       setPreviewSection(section);
     }
   }
@@ -219,7 +224,7 @@ export default function TeacherSections({ role, school, user }) {
           <div>
             <h2>Create Section</h2>
             <p className="helper-copy">
-              Create a period, attach Math, and share the generated class code.
+              Create a period, attach a course package, and share the generated class code.
             </p>
           </div>
         </div>
@@ -231,12 +236,12 @@ export default function TeacherSections({ role, school, user }) {
         <form className="section-form" onSubmit={handleCreateSection}>
           <label>
             Course Name
-            <input
-              autoComplete="off"
-              onChange={(event) => updateSectionField("courseName", event.target.value)}
-              placeholder="Math"
-              value={sectionForm.courseName}
-            />
+              <input
+                autoComplete="off"
+                onChange={(event) => updateSectionField("courseName", event.target.value)}
+                placeholder="Algebra 1 or English 1"
+                value={sectionForm.courseName}
+              />
           </label>
           <label>
             Period
@@ -256,7 +261,7 @@ export default function TeacherSections({ role, school, user }) {
               <option value="">Select curriculum</option>
               {curriculumPackages.map((curriculum) => (
                 <option key={curriculum.curriculumId} value={curriculum.curriculumId}>
-                  {curriculum.title}
+                  {getCurriculumLabel(curriculum)}
                 </option>
               ))}
             </select>
@@ -343,7 +348,7 @@ export default function TeacherSections({ role, school, user }) {
           </div>
 
           <div className="button-row selected-section-actions">
-            {selectedRosterSection.curriculumId === "math" ? (
+            {selectedRosterSection.curriculumId ? (
               <button
                 className="secondary-button fit-button"
                 onClick={() => setPreviewSection(selectedRosterSection)}
@@ -352,7 +357,7 @@ export default function TeacherSections({ role, school, user }) {
                 Curriculum
               </button>
             ) : null}
-            {selectedRosterSection.curriculumId === "math" ? (
+            {isMathCurriculum(selectedRosterSection.curriculumId) ? (
               <button
                 className="secondary-button fit-button"
                 onClick={() => setLiveMonitorSection(selectedRosterSection)}
@@ -399,7 +404,7 @@ export default function TeacherSections({ role, school, user }) {
                 <p className="muted-message">No students have joined this section yet.</p>
               )}
 
-              {selectedRosterSection.curriculumId === "math" ? (
+              {isMathCurriculum(selectedRosterSection.curriculumId) ? (
                 <DemoRosterPanel
                   role={role}
                   school={school}

@@ -767,6 +767,43 @@ h2 {
   margin-top: 0;
 }
 
+.course-unit-list {
+  display: grid;
+  gap: 16px;
+}
+
+.course-unit-card,
+.lesson-placeholder-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 18px;
+}
+
+.course-unit-card {
+  display: grid;
+  gap: 16px;
+}
+
+.course-unit-card h3,
+.lesson-placeholder-card h4 {
+  margin: 0;
+  color: var(--ink);
+}
+
+.course-unit-card p,
+.lesson-placeholder-card p {
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 8px 0 0;
+}
+
+.lesson-placeholder-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
 .assignment-setup-launch {
   margin-top: 20px;
 }

@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
 import {
+  getAvailableCurriculumPackages,
+  getCurriculumLabel,
+} from "../services/curriculum";
+import {
   subscribeActiveRosterCount,
   subscribeAdminSections,
 } from "../services/sections";
@@ -18,6 +22,7 @@ export default function AdminSections({ role, school, user }) {
   const [rosterCountErrors, setRosterCountErrors] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const curriculumPackages = getAvailableCurriculumPackages();
 
   useEffect(() => {
     if (!school) return undefined;
@@ -80,7 +85,30 @@ export default function AdminSections({ role, school, user }) {
   }
 
   return (
-    <section className="card dashboard-card">
+    <>
+      <section className="card dashboard-card">
+        <div className="section-heading-row">
+          <div>
+            <p className="eyebrow">Admin overview</p>
+            <h2>Available Curriculum</h2>
+            <p className="helper-copy">
+              Course packages currently available for teacher-created sections.
+            </p>
+          </div>
+        </div>
+
+        <div className="curriculum-grid">
+          {curriculumPackages.map((curriculum) => (
+            <article className="mini-card" key={curriculum.curriculumId}>
+              <p className="eyebrow">{curriculum.subject}</p>
+              <h3>{getCurriculumLabel(curriculum)}</h3>
+              <p>{curriculum.description}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="card dashboard-card">
       <div className="section-heading-row">
         <div>
           <p className="eyebrow">Admin overview</p>
@@ -134,6 +162,7 @@ export default function AdminSections({ role, school, user }) {
       ) : (
         <p className="muted-message">No active sections have been created yet.</p>
       )}
-    </section>
+      </section>
+    </>
   );
 }

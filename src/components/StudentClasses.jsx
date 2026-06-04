@@ -4,7 +4,7 @@ import {
   SectionError,
   subscribeStudentSections,
 } from "../services/sections";
-import MathCurriculumView from "./MathCurriculumView";
+import CurriculumView from "./CurriculumView";
 
 export default function StudentClasses({ role, school, user }) {
   const [sections, setSections] = useState([]);
@@ -59,23 +59,8 @@ export default function StudentClasses({ role, school, user }) {
   }
 
   if (openSection) {
-    if (openSection.curriculumId !== "math") {
-      return (
-        <section className="card dashboard-card">
-          <button
-            className="secondary-button fit-button"
-            onClick={() => setOpenSection(null)}
-            type="button"
-          >
-            Back
-          </button>
-          <p className="error-message">Unable to load curriculum.</p>
-        </section>
-      );
-    }
-
     return (
-      <MathCurriculumView
+      <CurriculumView
         role={role}
         school={school}
         section={openSection}

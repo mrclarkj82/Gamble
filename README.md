@@ -10,7 +10,9 @@ Static Vite + React app for the Doral Red Rock student, teacher, and admin gatew
 - Creates or updates `users/{uid}` profiles in Firestore.
 - Lets admin switch between Admin view and Teacher view.
 - Lets teachers create class sections with generated class codes.
-- Lets teachers attach the pre-built Math curriculum to a section.
+- Lets teachers attach pre-built course packages to a section.
+- Includes Algebra 1 / Math as the existing generated-problem course.
+- Adds an English 1 / Freshman English course shell with course metadata, units, lesson placeholders, and assignment type placeholders.
 - Lets teachers create actual Math assignments from the pre-built curriculum.
 - Generates problem previews and answer keys before assigning work.
 - Lets teachers/admin preview the exact student-facing work list and assignment runner for a section without creating student submissions.
@@ -18,14 +20,15 @@ Static Vite + React app for the Doral Red Rock student, teacher, and admin gatew
 - Saves demo submissions separately from real student submissions so grades and resubmission flows can be tested safely.
 - Lets teachers/admin open a Live Monitor for a selected Math assignment and see roster progress in real time.
 - Lets students join sections by class code.
-- Lets students open Math curriculum only through joined sections.
+- Lets students open attached curriculum only through joined sections.
+- Lets students view the English 1 course shell when enrolled in an English 1 section.
 - Lets students start and submit assigned Math work.
 - Lets teachers view rosters and remove students from a roster.
 - Lets admin view all active sections and attached curriculum.
 
 ## What Is Not Built Yet
 
-This version intentionally does not include an advanced curriculum builder, a full gradebook, house points, Google Classroom sync, device/browser surveillance, Clever sync, Infinite Campus sync, parent accounts, or teacher-created curriculum from scratch. It does include basic generated-problem assignments, student submissions, and in-app assignment progress monitoring.
+This version intentionally does not include an advanced curriculum builder, full English readings or worksheets, English annotation tools, English assignment creation, a full gradebook, Google Classroom sync, device/browser surveillance, Clever sync, Infinite Campus sync, parent accounts, or teacher-created curriculum from scratch. It does include basic generated-problem Math assignments, student submissions, in-app Math assignment progress monitoring, and a static English 1 shell ready for future public-domain/free-resource content.
 
 ## Accepted Accounts
 
@@ -93,7 +96,7 @@ schools/doral-red-rock
 }
 ```
 
-Create or seed this pre-built curriculum package:
+Create or seed this pre-built Math curriculum package if you want the Firestore package mirror:
 
 ```text
 schools/doral-red-rock/curriculumPackages/math
@@ -113,7 +116,39 @@ schools/doral-red-rock/curriculumPackages/math
 }
 ```
 
-The app also keeps a small code-first registry in `src/services/curriculum.js` so the dropdown works even before a full curriculum management system exists.
+Create or seed this English 1 curriculum package if you want the Firestore package mirror:
+
+```text
+schools/doral-red-rock/curriculumPackages/english-1
+```
+
+```json
+{
+  "curriculumId": "english-1",
+  "courseId": "english-1",
+  "title": "English 1",
+  "alternateTitle": "Freshman English",
+  "subject": "English Language Arts",
+  "subjectKey": "english",
+  "description": "A freshman English course focused on close reading, literary analysis, informational text, writing, vocabulary, grammar, discussion, and evidence-based responses.",
+  "gradeLevel": "Grade 9 / Freshman",
+  "active": true,
+  "isPrebuilt": true,
+  "createdAt": "server timestamp",
+  "updatedAt": "server timestamp"
+}
+```
+
+The app also keeps a small code-first registry in `src/services/curriculum.js` so the dropdown works even before a full curriculum management system exists. Version 6.0 stores the English 1 shell as static React data in `src/data/englishCurriculum.js`; it does not require Firestore writes.
+
+## Course Packages
+
+Current package registry:
+
+- `math` / `algebra-1`: Algebra 1 Math with generated problem assignments, grading, demo students, Live Monitor, and submissions.
+- `english-1`: English 1 / Freshman English shell with units, placeholder lessons, and future assignment type metadata.
+
+English 1 Version 6.0 does not include copyrighted stories, poems, articles, worksheets, or source-library passages. Full readings and assignments should be added later using public-domain or freely licensed resources.
 
 ## Firestore Structure
 
@@ -137,6 +172,7 @@ schools/{schoolId}/sections/{sectionId}
   studentCount
   studentUids
   curriculumId
+  courseId
   curriculumTitle
   curriculumSubject
 ```
@@ -379,7 +415,7 @@ Teacher/admin:
 
 1. Sign in as `joseph.clark@doralacademynv.org`.
 2. Use the Teacher view tab.
-3. Create a section with Course Name `Math`, Period `2`, Curriculum Package `Math`.
+3. Create a section with Course Name `Algebra 1`, Period `2`, Curriculum Package `Algebra 1 (Math)`.
 4. Copy the generated class code.
 5. Click the section name in Active Sections.
 6. Open Preview curriculum from the selected section tools.
@@ -402,16 +438,29 @@ Teacher/admin:
 23. Use row Reset for one submission, or Clear All Submissions to clear only the selected assignment.
 24. Open the roster and use Remove when a real student needs to be deleted from that roster.
 
+English 1 shell:
+
+1. Sign in as `joseph.clark@doralacademynv.org`.
+2. Use Teacher view.
+3. Create a section with Course Name `English 1`, Period `3`, Curriculum Package `English 1 (Freshman English)`.
+4. Click the section card in Active Sections.
+5. Confirm the English 1 shell opens and shows course metadata, six units, placeholder lessons, and English assignment type placeholders.
+6. Click Student Preview and confirm the student-facing shell shows the friendly empty state.
+7. Confirm no copyrighted reading content appears.
+8. Return to an Algebra 1 section and confirm Math assignments, grading, and Live Monitor still open.
+
 Student:
 
 1. Sign in with an approved `@student.doralacademynv.org` account.
 2. Enter school code `DRR2026` if prompted.
 3. Join with the teacher's class code.
-4. Open the Math curriculum from the joined class card.
-5. Start assigned work and submit answers.
+4. Open the attached curriculum from the joined class card.
+5. In a Math section, start assigned work and submit answers.
+6. In an English 1 section, confirm the shell says English lessons and assignments will appear when assigned.
 
 Admin:
 
 1. Sign in as `joseph.clark@doralacademynv.org`.
 2. Use Admin view.
 3. Confirm active sections show teacher, period, class code, student count, and curriculum.
+4. Confirm Available Curriculum shows Algebra 1 and English 1.
