@@ -15,6 +15,7 @@ Static Vite + React app for the Doral Red Rock student, teacher, and admin gatew
 - Adds an English 1 / Freshman English course shell with course metadata, units, lesson placeholders, and assignment type placeholders.
 - Adds an English 1 Source Library for copyright-safe resource metadata, source links, license notes, attribution, approval status, and link-only vs embeddable usage tracking.
 - Adds an English 1 Scope & Sequence with full-year pacing, six units, standards tags, lesson placeholders, assignment placeholders, and Source Library resource slots.
+- Adds an English 1 Unit 1 pilot, `Close Reading Foundations`, with original Gamble-created practice texts, five pilot lessons, assignable Unit 1 English work, student/demo submissions, teacher review, feedback, resubmission, and progress records for future English monitoring.
 - Lets admin manage English 1 source-library records and lets teachers view approved resources or submit needs-review suggestions.
 - Lets teachers create actual Math assignments from the pre-built curriculum.
 - Generates problem previews and answer keys before assigning work.
@@ -31,7 +32,7 @@ Static Vite + React app for the Doral Red Rock student, teacher, and admin gatew
 
 ## What Is Not Built Yet
 
-This version intentionally does not include an advanced curriculum builder, full English readings or worksheets, English annotation tools, English assignment creation, English live monitoring, a full gradebook, Google Classroom sync, device/browser surveillance, Clever sync, Infinite Campus sync, parent accounts, or teacher-created curriculum from scratch. It does include basic generated-problem Math assignments, student submissions, in-app Math assignment progress monitoring, a static English 1 shell, and an English 1 source-library system for future public-domain/free-resource content.
+This version intentionally does not include an advanced curriculum builder, the full English 1 course, copyrighted English readings or worksheets, full annotation/highlighting tools, English live monitoring, a full gradebook, Google Classroom sync, device/browser surveillance, Clever sync, Infinite Campus sync, parent accounts, or teacher-created curriculum from scratch. It does include basic generated-problem Math assignments, student submissions, in-app Math assignment progress monitoring, a static English 1 shell, an English 1 source-library system, and one working English 1 Unit 1 pilot.
 
 ## Accepted Accounts
 
@@ -165,6 +166,52 @@ The scope data includes:
 - Source Library resource slots that describe allowed license types and whether link-only or embeddable resources can be used.
 
 The Scope & Sequence is a planning blueprint only. It does not add full readings, copyrighted passages, worksheets, annotation tools, English assignment creation, English submissions, or English live monitoring.
+
+## English 1 Unit 1 Pilot
+
+Version 6.3 adds one working English 1 pilot unit:
+
+```text
+Unit 1 - Close Reading Foundations
+```
+
+The pilot unit appears in Teacher View or Student View when an English 1 section is opened. Teachers/admin use the `Unit 1 Pilot` tab to preview texts, preview assignment templates, assign work, and grade submissions. Students and demo/test students see assigned Unit 1 work inside the English 1 area.
+
+Original Gamble-created texts:
+
+- `The Locked Courtyard` - short fiction / literary excerpt.
+- `Why Good Readers Slow Down` - informational text.
+- `The Note in the Margin` - short literary practice text.
+
+Each text is static curriculum content with:
+
+```text
+author: "Gamble Education"
+sourceType: "original"
+copyrightStatus: "original_gamble_content"
+licenseType: "original_school_use"
+approvalStatus: "approved"
+canEmbed: true
+canModify: true
+requiresAttribution: false
+```
+
+Pilot lessons:
+
+- What Does It Mean to Read Closely?
+- Annotation Basics.
+- Main Idea, Theme, and Evidence.
+- Writing a Short Constructed Response.
+- Unit 1 Close Reading Skill Check.
+
+Working assignment templates:
+
+- `Close Reading Check: Why Good Readers Slow Down`
+- `Annotation Practice: Noticing Important Details`
+- `Theme and Evidence: The Locked Courtyard`
+- `Unit 1 Skill Check`
+
+Multiple-choice and selected-response questions are partially auto-graded. Annotation and written-response work is saved for teacher review. Teachers can enter a score, add feedback, and allow resubmission. Demo/test students save under demo submission paths, never real Firebase Auth student UIDs. Student Preview is local-only and does not create submissions or progress records.
 
 ## English 1 Source Library
 
@@ -354,6 +401,32 @@ schools/{schoolId}/sections/{sectionId}/assignments/{assignmentId}
   updatedAt
 ```
 
+English Unit 1 assignments use the same section assignment path:
+
+```text
+schools/{schoolId}/sections/{sectionId}/assignments/{assignmentId}
+  assignmentId
+  schoolId
+  sectionId
+  subject: "english"
+  courseId: "english-1"
+  unitId: "english-1-unit-1"
+  lessonId
+  assignmentTemplateId
+  title
+  assignmentType
+  directions
+  textIds
+  questions
+  dueDate
+  maxAttempts
+  feedbackSetting
+  assignedByUid
+  assignedAt
+  teacherUid
+  active
+```
+
 Student submissions:
 
 ```text
@@ -380,6 +453,25 @@ schools/{schoolId}/sections/{sectionId}/assignments/{assignmentId}/submissions/{
   resubmissionDueDate
   submittedAt
   updatedAt
+```
+
+English student submissions add these fields to the same `submissions/{studentUid}` or `demoSubmissions/{demoStudentId}` paths:
+
+```text
+subject: "english"
+courseId: "english-1"
+unitId
+answers
+annotations
+shortResponses
+selectedEvidence
+autoScore
+autoPossible
+teacherPossible
+teacherReviewRequired
+teacherFeedback
+resubmissionAllowed
+attempts
 ```
 
 Demo roster entries:
@@ -454,6 +546,26 @@ schools/{schoolId}/sections/{sectionId}/assignments/{assignmentId}/progress/{stu
   updatedAt
 ```
 
+English Unit 1 writes progress to the same future-monitoring path:
+
+```text
+schools/{schoolId}/sections/{sectionId}/assignments/{assignmentId}/progress/{studentKey}
+  subject: "english"
+  courseId: "english-1"
+  unitId
+  answeredCount
+  totalQuestions
+  annotationCount
+  draftWordCount
+  progressPercent
+  openedAt
+  lastActivityAt
+  submittedAt
+  attemptNumber
+```
+
+The existing Math Live Monitor UI was not expanded for English in Version 6.3. English progress records are written so a future subject-neutral monitor can consume them.
+
 `studentKey` is the real Firebase Auth UID for real students and the demo
 student ID for demo/test students. Student Preview does not write progress.
 
@@ -472,14 +584,17 @@ They allow:
 - Teachers to read rosters for sections they own.
 - Teachers to remove students from rosters they own.
 - Teachers to create assignments for sections they own.
+- Teachers/admin to create English Unit 1 assignments for sections they own or administer.
 - Students to read assignments only through enrolled sections.
 - Students to submit their own assignment work.
+- Students to submit their own English work and write only their own English progress documents.
 - Students to create/update only their own assignment progress documents.
 - Teachers/admin to create demo students only for sections they own or administer.
 - Teachers/admin to save demo submissions only under `demoSubmissions`, not real student UID paths.
 - Teachers/admin to read assignment progress and submissions for sections they own or administer.
 - Teachers/admin to create/update demo progress only for sections they own or administer.
 - Teachers/admin to review submissions and open resubmission without creating real student submissions.
+- Teachers/admin to review English written responses, update score/feedback, and allow resubmission for sections they own or administer.
 - Teachers/admin to reset or clear assignment submissions only for sections they own or administer.
 - Students cannot delete or clear assignment submission documents.
 - Admin to read all sections in the admin school.
@@ -550,6 +665,26 @@ English 1 shell:
 9. Click Student Preview and confirm the student-facing roadmap is simplified and does not show source-management controls, teacher notes, or standards-heavy planning metadata.
 10. Confirm no copyrighted reading content appears.
 11. Return to an Algebra 1 section and confirm Math assignments, grading, and Live Monitor still open.
+
+English Unit 1 pilot:
+
+1. Sign in as `joseph.clark@doralacademynv.org`.
+2. Use Teacher view.
+3. Open or create an English 1 section.
+4. Open the `Unit 1 Pilot` tab.
+5. Confirm the original texts `The Locked Courtyard`, `Why Good Readers Slow Down`, and `The Note in the Margin` appear with safe-to-embed metadata.
+6. Click `Assign Unit 1 Work`.
+7. Assign `Close Reading Check: Why Good Readers Slow Down`.
+8. Assign `Theme and Evidence: The Locked Courtyard`.
+9. Open Student Preview and confirm assigned Unit 1 work appears.
+10. Type preview answers and use Demo Submit; confirm the preview says answers are not saved.
+11. Open the section roster, generate demo students, and click Test as Student.
+12. Open English 1 as the demo student and submit assigned Unit 1 work.
+13. Return to teacher mode, open `Grade Assignment`, and confirm the roster table appears.
+14. Click View Work for the demo student and confirm answers, annotations or written responses, answer key, score, feedback, and resubmission controls appear.
+15. Save feedback and allow resubmission.
+16. Re-enter Test as Student and confirm resubmission is available.
+17. Confirm English progress documents are created with `subject: "english"` and `courseId: "english-1"`.
 
 Admin Scope & Sequence:
 

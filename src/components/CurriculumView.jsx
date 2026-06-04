@@ -4,9 +4,11 @@ import MathCurriculumView from "./MathCurriculumView";
 
 export default function CurriculumView({
   onBack,
+  onExitTestMode,
   role,
   school,
   section,
+  testStudent = null,
   user,
 }) {
   const curriculumId = section?.curriculumId;
@@ -19,7 +21,9 @@ export default function CurriculumView({
         role={role}
         school={school}
         section={section}
+        testStudent={testStudent}
         user={user}
+        onExitTestMode={onExitTestMode}
       />
     );
   }
@@ -31,7 +35,9 @@ export default function CurriculumView({
         role={role}
         school={school}
         section={section}
+        testStudent={testStudent}
         user={user}
+        onExitTestMode={onExitTestMode}
       />
     );
   }

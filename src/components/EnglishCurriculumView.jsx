@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ENGLISH_1_COURSE } from "../data/englishCurriculum";
 import EnglishScopeSequenceView from "./EnglishScopeSequenceView";
+import EnglishUnit1PilotView from "./EnglishUnit1PilotView";
 import SourceLibrary from "./SourceLibrary";
 
 function SkillTags({ skills }) {
@@ -175,10 +176,19 @@ function EnglishShellContent({
   );
 }
 
-export default function EnglishCurriculumView({ onBack, role, school, section, user }) {
+export default function EnglishCurriculumView({
+  onBack,
+  onExitTestMode,
+  role,
+  school,
+  section,
+  testStudent = null,
+  user,
+}) {
   const [showStudentPreview, setShowStudentPreview] = useState(false);
-  const [activeTab, setActiveTab] = useState("scope");
+  const [activeTab, setActiveTab] = useState("unit1");
   const canPreview = role === "teacher" || role === "admin";
+  const isTestMode = Boolean(testStudent);
 
   if (!section) {
     return (
@@ -202,11 +212,24 @@ export default function EnglishCurriculumView({ onBack, role, school, section, u
       <div className="section-heading-row">
         <div>
           <p className="eyebrow">{section.sectionName || "Freshman English"}</p>
-          <h2>English 1</h2>
-          <p className="helper-copy">{ENGLISH_1_COURSE.description}</p>
+          <h2>{isTestMode ? "Testing as Demo Student" : "English 1"}</h2>
+          <p className="helper-copy">
+            {isTestMode
+              ? `Teacher Test Mode - Viewing as ${testStudent.displayName}.`
+              : ENGLISH_1_COURSE.description}
+          </p>
         </div>
         <div className="button-row">
-          {canPreview ? (
+          {isTestMode && onExitTestMode ? (
+            <button
+              className="primary-button fit-button"
+              onClick={onExitTestMode}
+              type="button"
+            >
+              Exit Test Mode
+            </button>
+          ) : null}
+          {canPreview && !isTestMode ? (
             <button
               className="primary-button fit-button"
               onClick={() => setShowStudentPreview(true)}
@@ -221,8 +244,15 @@ export default function EnglishCurriculumView({ onBack, role, school, section, u
         </div>
       </div>
 
-      {canPreview ? (
+      {canPreview && !isTestMode ? (
         <div className="course-tab-row" aria-label="English 1 course tools">
+          <button
+            className={activeTab === "unit1" ? "active" : ""}
+            onClick={() => setActiveTab("unit1")}
+            type="button"
+          >
+            Unit 1 Pilot
+          </button>
           <button
             className={activeTab === "scope" ? "active" : ""}
             onClick={() => setActiveTab("scope")}
@@ -247,6 +277,18 @@ export default function EnglishCurriculumView({ onBack, role, school, section, u
         </div>
       ) : null}
 
+      {isTestMode ? (
+        <EnglishUnit1PilotView
+          actorUser={user}
+          role={role}
+          school={school}
+          section={section}
+          testMode
+          user={testStudent}
+          onExitTestMode={onExitTestMode}
+        />
+      ) : null}
+
       {!canPreview ? (
         <>
           <CourseDetails course={ENGLISH_1_COURSE} section={section} />
@@ -254,15 +296,32 @@ export default function EnglishCurriculumView({ onBack, role, school, section, u
             Your English 1 lessons and assignments will appear here when your
             teacher assigns them.
           </p>
+          <EnglishUnit1PilotView
+            role={role}
+            school={school}
+            section={section}
+            studentMode
+            user={user}
+          />
           <EnglishScopeSequenceView studentMode />
         </>
       ) : null}
 
-      {canPreview && activeTab === "scope" ? (
+      {canPreview && !isTestMode && activeTab === "unit1" ? (
+        <EnglishUnit1PilotView
+          canAssign
+          role={role}
+          school={school}
+          section={section}
+          user={user}
+        />
+      ) : null}
+
+      {canPreview && !isTestMode && activeTab === "scope" ? (
         <EnglishScopeSequenceView />
       ) : null}
 
-      {canPreview && activeTab === "overview" ? (
+      {canPreview && !isTestMode && activeTab === "overview" ? (
         <EnglishShellContent
           includeAssignmentTypes
           role={role}
@@ -272,7 +331,7 @@ export default function EnglishCurriculumView({ onBack, role, school, section, u
         />
       ) : null}
 
-      {canPreview && activeTab === "resources" ? (
+      {canPreview && !isTestMode && activeTab === "resources" ? (
         <SourceLibrary compact role={role} school={school} user={user} />
       ) : null}
 
@@ -306,6 +365,18 @@ export default function EnglishCurriculumView({ onBack, role, school, section, u
               Your English 1 lessons and assignments will appear here when your
               teacher assigns them.
             </p>
+            <EnglishUnit1PilotView
+              actorUser={user}
+              previewMode
+              role={role}
+              school={school}
+              section={section}
+              user={{
+                uid: `english-preview-${section.sectionId || section.id}`,
+                displayName: "Demo Student",
+                email: "demo.student@student.example",
+              }}
+            />
             <EnglishScopeSequenceView studentMode />
           </section>
         </div>

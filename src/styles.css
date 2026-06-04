@@ -1576,6 +1576,106 @@ h2 {
   margin: 0;
 }
 
+.english-unit-panel {
+  display: grid;
+  gap: 18px;
+}
+
+.english-text-list,
+.english-question-list,
+.assigned-work-list {
+  display: grid;
+  gap: 14px;
+}
+
+.english-text-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 18px;
+}
+
+.english-passage {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.english-passage p {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 10px;
+  color: var(--ink);
+  line-height: 1.65;
+  margin: 0;
+}
+
+.english-passage p span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #edf7f4;
+  color: #174b41;
+  font-size: 0.78rem;
+  font-weight: 900;
+  height: 26px;
+  margin-top: 2px;
+}
+
+.english-question-card textarea,
+.english-runner textarea,
+.review-field textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--ink);
+  min-height: 120px;
+  padding: 10px 12px;
+  resize: vertical;
+}
+
+.english-question-card select,
+.english-runner select,
+.review-field input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--ink);
+  min-height: 46px;
+  padding: 10px 12px;
+}
+
+.assigned-work-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(80px, auto) auto;
+  gap: 16px;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 14px;
+}
+
+.assigned-work-row h3 {
+  margin: 0;
+}
+
+.assigned-work-row span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.assigned-work-row strong {
+  color: var(--ink);
+  font-size: 1.2rem;
+}
+
 .source-library-shell {
   display: grid;
   gap: 18px;
@@ -1867,6 +1967,7 @@ h2 {
   .source-form-grid,
   .source-library-controls,
   .scope-unit-detail summary,
+  .assigned-work-row,
   .admin-section-row {
     grid-template-columns: 1fr;
   }

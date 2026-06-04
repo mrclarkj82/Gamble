@@ -4,6 +4,7 @@ import {
   englishStandardsFramework,
   englishStandardsTags,
 } from "./englishScopeSequence";
+import { englishUnit1Pilot } from "./englishUnit1Pilot";
 
 export const englishAssignmentTypes = [
   {
@@ -463,6 +464,7 @@ export const ENGLISH_1_COURSE = {
   pacingGuide: englishPacingGuide,
   standardsFramework: englishStandardsFramework,
   standardsTags: englishStandardsTags,
+  pilotUnits: [englishUnit1Pilot],
   scopeUnits: englishScopeUnits,
   units: englishUnits,
   assignmentTypes: englishAssignmentTypes,

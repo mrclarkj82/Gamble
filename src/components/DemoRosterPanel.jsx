@@ -128,7 +128,7 @@ export default function DemoRosterPanel({
           <p className="eyebrow">Demo roster</p>
           <h3>Test Students</h3>
           <p className="helper-copy">
-            Generate demo students, then test this Math section as one selected
+            Generate demo students, then test this section as one selected
             student. Demo activity is saved separately from real student data.
           </p>
         </div>

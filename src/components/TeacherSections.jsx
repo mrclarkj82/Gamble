@@ -166,7 +166,7 @@ export default function TeacherSections({ role, school, user }) {
 
   if (testSession) {
     return (
-      <MathCurriculumView
+      <CurriculumView
         role={role}
         school={school}
         section={testSession.section}
@@ -404,17 +404,15 @@ export default function TeacherSections({ role, school, user }) {
                 <p className="muted-message">No students have joined this section yet.</p>
               )}
 
-              {isMathCurriculum(selectedRosterSection.curriculumId) ? (
-                <DemoRosterPanel
-                  role={role}
-                  school={school}
-                  section={selectedRosterSection}
-                  user={user}
-                  onTestAsStudent={(student) =>
-                    setTestSession({ section: selectedRosterSection, student })
-                  }
-                />
-              ) : null}
+              <DemoRosterPanel
+                role={role}
+                school={school}
+                section={selectedRosterSection}
+                user={user}
+                onTestAsStudent={(student) =>
+                  setTestSession({ section: selectedRosterSection, student })
+                }
+              />
             </div>
           ) : null}
         </section>
