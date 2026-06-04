@@ -378,6 +378,88 @@ function updateArrayItem(items, index, field, value) {
   );
 }
 
+function newQuestionForType(typeId, index) {
+  if (typeId === "reading_check") {
+    return {
+      questionId: `q${index + 1}`,
+      type: "multiple_choice",
+      prompt: "New reading check question",
+      options: ["Answer A", "Answer B", "Answer C", "Answer D"],
+      correctAnswer: "Answer A",
+      points: 1,
+    };
+  }
+
+  if (typeId === "annotation_assignment") {
+    return {
+      questionId: `q${index + 1}`,
+      type: "annotation",
+      paragraphNumber: index + 1,
+      noteType: "Important detail",
+      prompt: "Write a close-reading note for this paragraph or section.",
+      points: 3,
+      teacherReviewed: true,
+    };
+  }
+
+  if (typeId === "paragraph_response") {
+    return {
+      questionId: `q${index + 1}`,
+      type: "paragraph_response",
+      prompt: "Write a developed paragraph that answers this prompt.",
+      points: 16,
+      teacherReviewed: true,
+    };
+  }
+
+  return {
+    questionId: `q${index + 1}`,
+    type: "short_response",
+    prompt: "New short-response prompt",
+    points: 4,
+    teacherReviewed: true,
+  };
+}
+
+function normalizeQuestionForBuilder(question, type) {
+  const teacherReviewedTypes = [
+    "annotation",
+    "paragraph_response",
+    "short_response",
+    "vocabulary_sentence",
+  ];
+
+  return {
+    ...question,
+    type,
+    correctAnswer:
+      ["multiple_choice", "select"].includes(type)
+        ? question.correctAnswer || question.options?.[0] || ""
+        : type === "true_false"
+          ? question.correctAnswer || "True"
+          : "",
+    options:
+      ["multiple_choice", "select"].includes(type)
+        ? question.options?.length
+          ? question.options
+          : ["Answer A", "Answer B", "Answer C", "Answer D"]
+        : type === "true_false"
+          ? ["True", "False"]
+          : [],
+    teacherReviewed: teacherReviewedTypes.includes(type),
+  };
+}
+
+function newVocabularyItem(index) {
+  return {
+    word: `Word ${index + 1}`,
+    definition: "",
+    contextSentence: "",
+    options: ["Correct meaning", "Distractor 1", "Distractor 2", "Distractor 3"],
+    correctAnswer: "Correct meaning",
+  };
+}
+
 function SourcePanel({ assignment }) {
   const textBlocks = assignment.textBlocks?.length
     ? assignment.textBlocks
@@ -773,9 +855,46 @@ function AssignmentBuilderFields({ config, setConfig, typeId }) {
   if (typeId === "vocabulary_practice") {
     return (
       <div className="english-builder-stack">
+        <div className="section-heading-row compact-heading">
+          <div>
+            <p className="eyebrow">Vocabulary items</p>
+            <h3>Words and Practice</h3>
+          </div>
+          <button
+            className="secondary-button fit-button"
+            onClick={() =>
+              setConfig((current) => ({
+                ...current,
+                vocabularyItems: [
+                  ...(current.vocabularyItems || []),
+                  newVocabularyItem(current.vocabularyItems?.length || 0),
+                ],
+              }))
+            }
+            type="button"
+          >
+            Add Vocabulary Word
+          </button>
+        </div>
         {(config.vocabularyItems || []).map((item, index) => (
           <article className="student-problem-card" key={`vocab-${index}`}>
-            <p className="eyebrow">Vocabulary word {index + 1}</p>
+            <div className="section-heading-row compact-heading">
+              <p className="eyebrow">Vocabulary word {index + 1}</p>
+              {(config.vocabularyItems || []).length > 1 ? (
+                <button
+                  className="danger-button fit-button"
+                  onClick={() =>
+                    setConfig((current) => ({
+                      ...current,
+                      vocabularyItems: current.vocabularyItems.filter((_, itemIndex) => itemIndex !== index),
+                    }))
+                  }
+                  type="button"
+                >
+                  Remove
+                </button>
+              ) : null}
+            </div>
             <label>
               Word
               <input
@@ -849,9 +968,84 @@ function AssignmentBuilderFields({ config, setConfig, typeId }) {
 
   return (
     <div className="english-builder-stack">
+      <div className="section-heading-row compact-heading">
+        <div>
+          <p className="eyebrow">Prompts</p>
+          <h3>Questions and Prompts</h3>
+        </div>
+        <button
+          className="secondary-button fit-button"
+          onClick={() =>
+            setConfig((current) => ({
+              ...current,
+              questions: [
+                ...(current.questions || []),
+                newQuestionForType(typeId, current.questions?.length || 0),
+              ],
+            }))
+          }
+          type="button"
+        >
+          Add Prompt
+        </button>
+      </div>
       {(config.questions || []).map((question, index) => (
         <article className="student-problem-card" key={question.questionId}>
-          <p className="eyebrow">Prompt {index + 1}</p>
+          <div className="section-heading-row compact-heading">
+            <p className="eyebrow">Prompt {index + 1}</p>
+            {(config.questions || []).length > 1 ? (
+              <button
+                className="danger-button fit-button"
+                onClick={() =>
+                  setConfig((current) => ({
+                    ...current,
+                    questions: current.questions.filter((_, itemIndex) => itemIndex !== index),
+                  }))
+                }
+                type="button"
+              >
+                Remove
+              </button>
+            ) : null}
+          </div>
+          <div className="assignment-setup-grid">
+            <label>
+              Prompt type
+              <select
+                onChange={(event) =>
+                  setConfig((current) => ({
+                    ...current,
+                    questions: current.questions.map((item, itemIndex) =>
+                      itemIndex === index
+                        ? normalizeQuestionForBuilder(item, event.target.value)
+                        : item,
+                    ),
+                  }))
+                }
+                value={question.type}
+              >
+                <option value="multiple_choice">Multiple choice</option>
+                <option value="true_false">True / false</option>
+                <option value="short_response">Short response</option>
+                <option value="annotation">Annotation</option>
+                <option value="paragraph_response">Paragraph response</option>
+              </select>
+            </label>
+            <label>
+              Points
+              <input
+                min="0"
+                onChange={(event) =>
+                  setConfig((current) => ({
+                    ...current,
+                    questions: updateArrayItem(current.questions, index, "points", Number(event.target.value) || 0),
+                  }))
+                }
+                type="number"
+                value={question.points ?? 1}
+              />
+            </label>
+          </div>
           <label>
             Question / prompt
             <textarea
@@ -1112,7 +1306,11 @@ function EnglishAssignmentBuilder({ role, school, section, user }) {
         </label>
         <label>
           Instructions
-          <textarea onChange={(event) => setSetup((current) => ({ ...current, instructions: event.target.value }))} value={setup.instructions} />
+          <textarea
+            className="assignment-instructions-input"
+            onChange={(event) => setSetup((current) => ({ ...current, instructions: event.target.value }))}
+            value={setup.instructions}
+          />
         </label>
         {type.supportsRubric ? (
           <label className="checkbox-label">
@@ -1698,7 +1896,7 @@ export default function EnglishAssignmentEngine({
       <>
         <section className="assignment-setup-launch">
           <button className="primary-button fit-button" onClick={() => setShowBuilder((current) => !current)} type="button">
-            {showBuilder ? "Hide Create Assignment" : "Create Assignment"}
+            {showBuilder ? "Hide Manual Assignment Builder" : "Manually Create a New Assignment"}
           </button>
         </section>
         {showBuilder ? <EnglishAssignmentBuilder role={role} school={school} section={section} user={user} /> : null}

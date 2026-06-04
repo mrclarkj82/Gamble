@@ -1604,6 +1604,26 @@ h2 {
   gap: 14px;
 }
 
+.assignment-instructions-input {
+  min-height: 180px;
+}
+
+.english-builder-form input,
+.english-builder-form select,
+.english-builder-form textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--ink);
+  min-height: 46px;
+  padding: 10px 12px;
+}
+
+.english-builder-form textarea {
+  resize: vertical;
+}
+
 .paragraph-response-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
