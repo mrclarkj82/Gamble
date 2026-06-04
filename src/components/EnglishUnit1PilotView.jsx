@@ -397,6 +397,7 @@ function EnglishAssignmentRunner({
   const [submission, setSubmission] = useState(null);
   const [answers, setAnswers] = useState({});
   const [message, setMessage] = useState("");
+  const [messageTone, setMessageTone] = useState("success");
   const [demoResult, setDemoResult] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const texts = (assignment.textIds || []).map(getText).filter(Boolean);
@@ -446,13 +447,22 @@ function EnglishAssignmentRunner({
   }, [actorUser, assignment, previewMode, role, school, section, testMode, user]);
 
   function updateAnswer(questionId, value) {
-    const nextAnswers = { ...answers, [questionId]: value };
-    setAnswers(nextAnswers);
+    setAnswers((current) => ({ ...current, [questionId]: value }));
+  }
 
-    if (!previewMode) {
+  useEffect(() => {
+    if (previewMode || !assignment || !user || !Object.keys(answers).length) {
+      return undefined;
+    }
+
+    if (submission && !canSubmitAssignment(assignment, submission, previewMode)) {
+      return undefined;
+    }
+
+    const timeout = window.setTimeout(() => {
       recordEnglishAnswerProgress({
         actorUser,
-        answers: nextAnswers,
+        answers,
         assignment,
         role,
         school,
@@ -460,11 +470,25 @@ function EnglishAssignmentRunner({
         testMode,
         user,
       }).catch((error) => console.warn("English answer progress failed", error));
-    }
-  }
+    }, 1200);
+
+    return () => window.clearTimeout(timeout);
+  }, [
+    actorUser,
+    answers,
+    assignment,
+    previewMode,
+    role,
+    school,
+    section,
+    submission,
+    testMode,
+    user,
+  ]);
 
   async function handleSubmit() {
     setMessage("");
+    setMessageTone("success");
     setIsSubmitting(true);
 
     const grading = gradeEnglishAnswers(assignment, answers);
@@ -472,6 +496,7 @@ function EnglishAssignmentRunner({
     if (previewMode) {
       setDemoResult(grading);
       setMessage("Student Preview - answers are not saved.");
+      setMessageTone("success");
       setIsSubmitting(false);
       return;
     }
@@ -488,6 +513,7 @@ function EnglishAssignmentRunner({
           user,
         });
         setMessage("Demo English submission saved as test data.");
+        setMessageTone("success");
       } else {
         await submitEnglishAssignmentWork({
           answers,
@@ -498,10 +524,15 @@ function EnglishAssignmentRunner({
           user,
         });
         setMessage("Submitted. Your teacher will review any written responses.");
+        setMessageTone("success");
       }
     } catch (error) {
       console.error("English submission failed", error);
-      setMessage(error.message || "Unable to submit English work.");
+      setMessage(
+        error.message ||
+          "Unable to submit English work. Please refresh the assignment and try again.",
+      );
+      setMessageTone("danger");
     } finally {
       setIsSubmitting(false);
     }
@@ -576,7 +607,7 @@ function EnglishAssignmentRunner({
           mode does not create submissions.
         </p>
       ) : null}
-      {message ? <p className="status-message success">{message}</p> : null}
+      {message ? <p className={`status-message ${messageTone}`}>{message}</p> : null}
 
       {texts.map((text) => (
         <TextPreview key={text.textId} text={text} />

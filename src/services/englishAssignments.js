@@ -581,23 +581,27 @@ async function submitEnglishWork({
 
   await setDoc(submissionRef, basePayload, { merge: true });
 
-  await writeEnglishProgress({
-    actorUser,
-    answers,
-    annotationCount: countAnswered(annotations),
-    assignment,
-    attemptNumber,
-    draftWordCount: Object.values(shortResponses).join(" ").split(/\s+/).filter(Boolean).length,
-    gradePercent: grading.gradePercent,
-    isDemo,
-    role,
-    school,
-    score: grading.autoScore,
-    section,
-    status: attemptNumber > 1 ? "resubmitted" : "submitted",
-    submitted: true,
-    user,
-  });
+  try {
+    await writeEnglishProgress({
+      actorUser,
+      answers,
+      annotationCount: countAnswered(annotations),
+      assignment,
+      attemptNumber,
+      draftWordCount: Object.values(shortResponses).join(" ").split(/\s+/).filter(Boolean).length,
+      gradePercent: grading.gradePercent,
+      isDemo,
+      role,
+      school,
+      score: grading.autoScore,
+      section,
+      status: attemptNumber > 1 ? "resubmitted" : "submitted",
+      submitted: true,
+      user,
+    });
+  } catch (error) {
+    console.warn("English submission was saved, but progress tracking failed", error);
+  }
 }
 
 export async function submitEnglishAssignmentWork(options) {
