@@ -119,6 +119,14 @@ function getLatestSubmittedAt(submission) {
 }
 
 function answerIsFilled(answer) {
+  if (Array.isArray(answer)) {
+    return answer.some((item) =>
+      item && typeof item === "object"
+        ? Object.values(item).some((value) => String(value || "").trim())
+        : String(item || "").trim(),
+    );
+  }
+
   if (answer && typeof answer === "object") {
     return Object.values(answer).some((value) => String(value || "").trim());
   }
@@ -172,6 +180,107 @@ function getRosterStatus(submission) {
 
 function normalizeAnswer(value) {
   return String(value || "").trim().toLowerCase();
+}
+
+const ANNOTATION_NOTE_TYPES = [
+  "Important detail",
+  "Question",
+  "Confusing part",
+  "Vocabulary",
+  "Evidence",
+  "Theme / central idea clue",
+  "Other",
+];
+
+const FRIENDLY_STATUS_LABELS = {
+  assigned: "Not Started",
+  auto_graded: "Auto-Graded",
+  awaiting_teacher_review: "Awaiting Teacher Review",
+  graded: "Graded",
+  needs_resubmission: "Resubmission Available",
+  needs_revision: "Resubmission Available",
+  nearly_done: "In Progress",
+  resubmitted: "Resubmitted",
+  started: "In Progress",
+  submitted: "Submitted",
+  working: "In Progress",
+};
+
+function getFriendlyStatus(submission, previewMode = false) {
+  if (previewMode) return "Preview Only";
+  if (!submission) return "Not Started";
+  return FRIENDLY_STATUS_LABELS[submission.status] || "Submitted";
+}
+
+function getStudentKey({ testMode, user }) {
+  return testMode ? user?.demoStudentId : user?.uid;
+}
+
+function getLocalDraftKey({ assignment, previewMode, testMode, user }) {
+  const studentKey = getStudentKey({ testMode, user }) || "preview";
+  const mode = previewMode ? "preview" : testMode ? "demo" : "student";
+  return `gamble:english-draft:${assignment?.assignmentId || "unknown"}:${mode}:${studentKey}`;
+}
+
+function readLocalDraft(key) {
+  if (typeof window === "undefined" || !key) return null;
+
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch (error) {
+    console.warn("Unable to read English draft", error);
+    return null;
+  }
+}
+
+function writeLocalDraft(key, answers) {
+  if (typeof window === "undefined" || !key) return;
+  window.localStorage.setItem(key, JSON.stringify({ answers, savedAt: new Date().toISOString() }));
+}
+
+function clearLocalDraft(key) {
+  if (typeof window === "undefined" || !key) return;
+  window.localStorage.removeItem(key);
+}
+
+function answerComplete(question, answer) {
+  if (question.optional) return true;
+
+  if (question.type === "paragraph_response") {
+    return Boolean(String(answer?.finalParagraph || "").trim());
+  }
+
+  if (question.type === "annotation") {
+    if (Array.isArray(answer)) {
+      return answer.some((note) => String(note?.noteText || "").trim());
+    }
+
+    return Boolean(String(answer || "").trim());
+  }
+
+  return answerIsFilled(answer);
+}
+
+function getMissingRequiredQuestions(assignment, answers = {}) {
+  return (assignment.questions || []).filter(
+    (question) => !answerComplete(question, answers[question.questionId]),
+  );
+}
+
+function getQuestionWordCount(answer) {
+  if (!answer) return 0;
+  if (typeof answer === "object" && !Array.isArray(answer)) {
+    return Object.values(answer).join(" ").split(/\s+/).filter(Boolean).length;
+  }
+  if (Array.isArray(answer)) {
+    return answer
+      .map((note) => Object.values(note || {}).join(" "))
+      .join(" ")
+      .split(/\s+/)
+      .filter(Boolean).length;
+  }
+  return String(answer).split(/\s+/).filter(Boolean).length;
 }
 
 function defaultConfig(typeId) {
@@ -468,6 +577,12 @@ function SourcePanel({ assignment }) {
         .filter(Boolean)
         .map(textToBlock);
 
+  const linkedSources = (assignment.sourceRefs || []).filter((source) => !source.isOriginalGambleText);
+
+  if (!textBlocks.length && !linkedSources.length) {
+    return <p className="muted-message">No reading source is attached to this assignment.</p>;
+  }
+
   return (
     <section className="english-source-panel">
       {textBlocks.map((text) => (
@@ -491,9 +606,7 @@ function SourcePanel({ assignment }) {
         </article>
       ))}
 
-      {(assignment.sourceRefs || [])
-        .filter((source) => !source.isOriginalGambleText)
-        .map((source) => (
+      {linkedSources.map((source) => (
           <article className="english-text-card link-only-source-card" key={source.sourceId || source.title}>
             <div className="section-heading-row compact-heading">
               <div>
@@ -509,15 +622,112 @@ function SourcePanel({ assignment }) {
               </span>
             </div>
             <p className="status-message success">
-              This resource is link-only in this assignment. Students open the source from its original website.
+              This reading opens from its original source.
             </p>
             {source.attributionText ? <p className="helper-copy">{source.attributionText}</p> : null}
             <a className="secondary-button fit-button source-link-button" href={source.sourceUrl} rel="noreferrer" target="_blank">
-              Open source reading
+              Open Reading
             </a>
           </article>
         ))}
     </section>
+  );
+}
+
+function AnnotationNoteEditor({ disabled, notes = [], onChange, question }) {
+  const normalizedNotes = Array.isArray(notes)
+    ? notes
+    : notes
+      ? [
+          {
+            noteId: "legacy-note",
+            noteText: String(notes || ""),
+            noteType: question.noteType || "Important detail",
+            reference: question.paragraphNumber ? `Paragraph ${question.paragraphNumber}` : "",
+          },
+        ]
+      : [];
+
+  function updateNote(index, field, value) {
+    onChange(
+      normalizedNotes.map((note, noteIndex) =>
+        noteIndex === index ? { ...note, [field]: value } : note,
+      ),
+    );
+  }
+
+  function addNote() {
+    onChange([
+      ...normalizedNotes,
+      {
+        noteId: `note-${Date.now()}`,
+        noteText: "",
+        noteType: question.noteType || "Important detail",
+        reference: question.paragraphNumber ? `Paragraph ${question.paragraphNumber}` : "",
+      },
+    ]);
+  }
+
+  function removeNote(index) {
+    onChange(normalizedNotes.filter((_, noteIndex) => noteIndex !== index));
+  }
+
+  return (
+    <div className="annotation-note-editor">
+      <div className="section-heading-row compact-heading">
+        <p className="helper-copy">Add notes tied to a paragraph, line, or section.</p>
+        <button className="secondary-button fit-button" disabled={disabled} onClick={addNote} type="button">
+          Add Note
+        </button>
+      </div>
+      {normalizedNotes.length ? (
+        normalizedNotes.map((note, index) => (
+          <article className="annotation-note-card" key={note.noteId || index}>
+            <div className="assignment-setup-grid">
+              <label>
+                Reference
+                <input
+                  disabled={disabled}
+                  onChange={(event) => updateNote(index, "reference", event.target.value)}
+                  placeholder="Paragraph 3"
+                  value={note.reference || ""}
+                />
+              </label>
+              <label>
+                Note type
+                <select
+                  disabled={disabled}
+                  onChange={(event) => updateNote(index, "noteType", event.target.value)}
+                  value={note.noteType || "Important detail"}
+                >
+                  {ANNOTATION_NOTE_TYPES.map((noteType) => (
+                    <option key={noteType} value={noteType}>
+                      {noteType}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <label>
+              Note
+              <textarea
+                disabled={disabled}
+                onChange={(event) => updateNote(index, "noteText", event.target.value)}
+                placeholder="Write your note"
+                value={note.noteText || ""}
+              />
+            </label>
+            {!disabled ? (
+              <button className="danger-button fit-button" onClick={() => removeNote(index)} type="button">
+                Delete Note
+              </button>
+            ) : null}
+          </article>
+        ))
+      ) : (
+        <p className="muted-message">No notes yet.</p>
+      )}
+    </div>
   );
 }
 
@@ -574,6 +784,17 @@ function EnglishQuestionRenderer({ answers, disabled, onAnswer, question }) {
     );
   }
 
+  if (question.type === "annotation") {
+    return (
+      <AnnotationNoteEditor
+        disabled={disabled}
+        notes={current}
+        onChange={(notes) => onAnswer(question.questionId, notes)}
+        question={question}
+      />
+    );
+  }
+
   return (
     <label>
       {question.type === "annotation"
@@ -586,7 +807,7 @@ function EnglishQuestionRenderer({ answers, disabled, onAnswer, question }) {
   );
 }
 
-function EnglishStudentAssignment({
+function EnglishStudentWorkspace({
   actorUser = null,
   assignment,
   onBack,
@@ -603,7 +824,9 @@ function EnglishStudentAssignment({
   const [messageTone, setMessageTone] = useState("success");
   const [demoResult, setDemoResult] = useState(null);
   const [previewCheckCount, setPreviewCheckCount] = useState(0);
+  const [saveStatus, setSaveStatus] = useState("No answers saved yet.");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const localDraftKey = getLocalDraftKey({ assignment, previewMode, testMode, user });
 
   useEffect(() => {
     if (previewMode || !assignment?.assignmentId) return undefined;
@@ -630,8 +853,18 @@ function EnglishStudentAssignment({
   }, [assignment, previewMode, school, section, testMode, user]);
 
   useEffect(() => {
-    if (submission?.answers) setAnswers(submission.answers);
-  }, [submission]);
+    if (submission?.answers) {
+      setAnswers(submission.answers);
+      setSaveStatus("Loaded submitted work.");
+      return;
+    }
+
+    const draft = readLocalDraft(localDraftKey);
+    if (draft?.answers) {
+      setAnswers(draft.answers);
+      setSaveStatus("Draft restored.");
+    }
+  }, [localDraftKey, submission]);
 
   useEffect(() => {
     if (previewMode || !assignment?.assignmentId || !user) return undefined;
@@ -657,13 +890,27 @@ function EnglishStudentAssignment({
   }
 
   useEffect(() => {
-    if (previewMode || !assignment?.assignmentId || !user || !Object.keys(answers).length) {
+    if (!assignment?.assignmentId || !user || !Object.keys(answers).length) {
       return undefined;
     }
 
     if (submission && !canSubmitAssignment()) return undefined;
 
+    setSaveStatus("Saving...");
     const timeout = window.setTimeout(() => {
+      try {
+        writeLocalDraft(localDraftKey, answers);
+      } catch (error) {
+        console.warn("English local draft save failed", error);
+        setSaveStatus("Unable to save.");
+        return;
+      }
+
+      if (previewMode) {
+        setSaveStatus("Saved locally for preview.");
+        return;
+      }
+
       recordEnglishAnswerProgress({
         actorUser,
         answers,
@@ -673,11 +920,16 @@ function EnglishStudentAssignment({
         section,
         testMode,
         user,
-      }).catch((error) => console.warn("English answer progress failed", error));
+      })
+        .then(() => setSaveStatus("Saved."))
+        .catch((error) => {
+          console.warn("English answer progress failed", error);
+          setSaveStatus("Your work could not be saved. Check your connection and try again.");
+        });
     }, 1200);
 
     return () => window.clearTimeout(timeout);
-  }, [actorUser, answers, assignment, previewMode, role, school, section, submission, testMode, user]);
+  }, [actorUser, answers, assignment, localDraftKey, previewMode, role, school, section, submission, testMode, user]);
 
   function updateAnswer(questionId, value) {
     setAnswers((current) => ({ ...current, [questionId]: value }));
@@ -687,6 +939,14 @@ function EnglishStudentAssignment({
     setMessage("");
     setMessageTone("success");
     setIsSubmitting(true);
+
+    const missingRequired = getMissingRequiredQuestions(assignment, answers);
+    if (missingRequired.length) {
+      setMessage("Some required questions are still missing.");
+      setMessageTone("danger");
+      setIsSubmitting(false);
+      return;
+    }
 
     const grading = gradeEnglishAnswers(assignment, answers);
 
@@ -710,9 +970,11 @@ function EnglishStudentAssignment({
           user,
         });
         setMessage("Demo English submission saved as test data.");
+        clearLocalDraft(localDraftKey);
       } else {
         await submitEnglishAssignmentWork({ answers, assignment, role, school, section, user });
         setMessage("Submitted. Your teacher will review any written responses.");
+        clearLocalDraft(localDraftKey);
       }
     } catch (error) {
       console.error("English submission failed", error);
@@ -726,14 +988,21 @@ function EnglishStudentAssignment({
   const canSubmit = canSubmitAssignment();
   const inputDisabled = !previewMode && Boolean(submission) && !canSubmit;
   const grading = gradeEnglishAnswers(assignment, answers);
+  const answeredCount = countAnswered(answers);
+  const totalQuestions = assignment.questions?.length || 0;
+  const attemptLabel = submission?.attemptNumber || (submission ? 1 : "--");
+  const friendlyStatus = getFriendlyStatus(submission, previewMode);
+  const unsupportedAssignment = !totalQuestions;
 
   return (
-    <section className="student-work-runner english-runner">
+    <section className="student-work-runner english-runner english-student-workspace">
       <div className="section-heading-row">
         <div>
-          <p className="eyebrow">{assignment.assignmentType}</p>
+          <p className="eyebrow">English 1</p>
           <h3>{assignment.title}</h3>
-          <p className="helper-copy">{assignment.instructions || assignment.directions}</p>
+          <p className="helper-copy">
+            {assignment.assignmentType} {assignment.unitId ? `| ${assignment.unitId}` : ""}
+          </p>
         </div>
         <button className="secondary-button fit-button" onClick={onBack} type="button">
           Back to English work
@@ -751,10 +1020,13 @@ function EnglishStudentAssignment({
         </p>
       ) : null}
       {submission?.resubmissionAllowed ? (
-        <p className="status-message success">Your teacher has allowed a resubmission.</p>
+        <p className="status-message success">
+          Resubmission is available. Review your teacher feedback, revise your work,
+          and submit again.
+        </p>
       ) : null}
 
-      <dl className="detail-list assignment-detail-list">
+      <dl className="detail-list assignment-detail-list english-workspace-meta">
         <div>
           <dt>Type</dt>
           <dd>{assignment.assignmentType}</dd>
@@ -764,88 +1036,136 @@ function EnglishStudentAssignment({
           <dd>{formatDate(assignment.dueDate)}</dd>
         </div>
         <div>
-          <dt>Max Attempts</dt>
-          <dd>{assignment.maxAttempts || 1}</dd>
+          <dt>Attempt</dt>
+          <dd>{attemptLabel}</dd>
         </div>
         <div>
           <dt>Status</dt>
-          <dd>{submission?.status || (previewMode ? "Preview only" : "Assigned")}</dd>
+          <dd>{friendlyStatus}</dd>
+        </div>
+        <div>
+          <dt>Saved</dt>
+          <dd>{saveStatus}</dd>
         </div>
       </dl>
 
-      {submission ? (
-        <section className="grade-summary-panel">
-          <p className="eyebrow">Submission result</p>
-          <h4>
-            {getSubmissionScore(submission)} / {getTotalPoints(assignment, submission)} ({getSubmissionPercent(submission)}%)
-          </h4>
-          <p className="helper-copy">
-            {submission.teacherReviewRequired
-              ? "Auto-graded items complete. Written responses need teacher review."
-              : "Auto-graded score shown."}
-          </p>
-          <p className="muted-message">{submission.teacherFeedback || submission.feedback || "No feedback yet."}</p>
-        </section>
-      ) : null}
+      <div className="english-workspace-layout">
+        <aside className="english-reading-column">
+          <div className="section-heading-row compact-heading">
+            <div>
+              <p className="eyebrow">Reading</p>
+              <h3>Source</h3>
+            </div>
+          </div>
+          <SourcePanel assignment={assignment} />
+        </aside>
 
-      <SourcePanel assignment={assignment} />
+        <section className="english-writing-column">
+          <div>
+            <p className="eyebrow">Instructions</p>
+            <p className="helper-copy">{assignment.instructions || assignment.directions}</p>
+          </div>
 
-      <div className="english-question-list">
-        {(assignment.questions || []).map((question, index) => (
-          <article className="student-problem-card english-question-card" key={question.questionId}>
-            <p className="eyebrow">Question {index + 1}</p>
-            <h4>{question.prompt}</h4>
-            <EnglishQuestionRenderer
-              answers={answers}
-              disabled={inputDisabled}
-              onAnswer={updateAnswer}
-              question={question}
-            />
-          </article>
-        ))}
-      </div>
+          {submission ? (
+            <section className="grade-summary-panel">
+              <p className="eyebrow">Feedback and Grade</p>
+              <h4>
+                {getSubmissionScore(submission)} / {getTotalPoints(assignment, submission)} ({getSubmissionPercent(submission)}%)
+              </h4>
+              <p className="helper-copy">
+                {submission.status === "graded" || submission.gradedAt
+                  ? "Reviewed by your teacher."
+                  : submission.teacherReviewRequired
+                    ? "Your written response is waiting for teacher review."
+                    : "Auto-graded score shown."}
+              </p>
+              <p className="muted-message">{submission.teacherFeedback || submission.feedback || "No feedback yet."}</p>
+              {submission.rubricScores && Object.keys(submission.rubricScores).length ? (
+                <dl className="detail-list assignment-detail-list">
+                  {Object.entries(submission.rubricScores).map(([rubricId, score]) => (
+                    <div key={rubricId}>
+                      <dt>{rubricId.replace(/-/g, " ")}</dt>
+                      <dd>{score}</dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : null}
+            </section>
+          ) : null}
 
-      {assignment.rubric?.length ? (
-        <section className="rubric-preview-panel">
-          <p className="eyebrow">Rubric</p>
-          <div className="rubric-grid">
-            {assignment.rubric.map((item) => (
-              <span key={item.rubricId}>
-                {item.label}: {item.maxScore} pts
-              </span>
-            ))}
+          {unsupportedAssignment ? (
+            <p className="muted-message">
+              This English assignment type is not available in the student workspace yet.
+            </p>
+          ) : (
+            <div className="english-question-list">
+              {(assignment.questions || []).map((question, index) => (
+                <article className="student-problem-card english-question-card" key={question.questionId}>
+                  <p className="eyebrow">Question {index + 1}</p>
+                  <h4>{question.prompt}</h4>
+                  <EnglishQuestionRenderer
+                    answers={answers}
+                    disabled={inputDisabled}
+                    onAnswer={updateAnswer}
+                    question={question}
+                  />
+                  {!answerComplete(question, answers[question.questionId]) ? (
+                    <p className="muted-message">Required</p>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+          )}
+
+          {assignment.rubric?.length ? (
+            <section className="rubric-preview-panel">
+              <p className="eyebrow">Rubric</p>
+              <div className="rubric-grid">
+                {assignment.rubric.map((item) => (
+                  <span key={item.rubricId}>
+                    {item.label}: {item.maxScore} pts
+                  </span>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          <div className="submission-action-panel">
+            <p className="helper-copy">
+              Answered {answeredCount} / {totalQuestions || 0}
+            </p>
+            <button
+              className="primary-button submit-work-button"
+              disabled={unsupportedAssignment || isSubmitting || (!previewMode && Boolean(submission) && !canSubmit)}
+              onClick={handleSubmit}
+              type="button"
+            >
+              {isSubmitting
+                ? "Submitting..."
+                : previewMode
+                  ? "Preview Submit"
+                  : submission && canSubmit
+                    ? "Resubmit Assignment"
+                    : submission
+                      ? "Already Submitted"
+                      : testMode
+                        ? "Submit As Demo Student"
+                        : "Submit Assignment"}
+            </button>
+            {message ? <p className={`status-message ${messageTone}`}>{message}</p> : null}
+            {demoResult ? (
+              <p className="status-message success">
+                Preview check {previewCheckCount}: auto-score {demoResult.autoScore} / {demoResult.autoPossible}. No submission or progress record was created.
+              </p>
+            ) : null}
+            {previewMode && grading.teacherReviewRequired ? (
+              <p className="muted-message">This assignment includes written responses that need teacher review.</p>
+            ) : null}
+            {!canSubmit && !previewMode ? (
+              <p className="muted-message">Resubmission is not currently available.</p>
+            ) : null}
           </div>
         </section>
-      ) : null}
-
-      <div className="submission-action-panel">
-        <button
-          className="primary-button submit-work-button"
-          disabled={isSubmitting || (!previewMode && Boolean(submission) && !canSubmit)}
-          onClick={handleSubmit}
-          type="button"
-        >
-          {isSubmitting
-            ? "Submitting..."
-            : previewMode
-              ? "Check Preview Answers"
-              : submission && canSubmit
-                ? "Resubmit Assignment"
-                : submission
-                  ? "Already Submitted"
-                  : testMode
-                    ? "Submit As Demo Student"
-                    : "Submit Assignment"}
-        </button>
-        {message ? <p className={`status-message ${messageTone}`}>{message}</p> : null}
-        {demoResult ? (
-          <p className="status-message success">
-            Preview check {previewCheckCount}: auto-score {demoResult.autoScore} / {demoResult.autoPossible}. No submission or progress record was created.
-          </p>
-        ) : null}
-        {previewMode && grading.teacherReviewRequired ? (
-          <p className="muted-message">This assignment includes written responses that need teacher review.</p>
-        ) : null}
       </div>
     </section>
   );
@@ -1342,7 +1662,7 @@ function EnglishAssignmentBuilder({ role, school, section, user }) {
       ) : null}
 
       {showPreview && draft ? (
-        <EnglishStudentAssignment
+        <EnglishStudentWorkspace
           assignment={{ ...draft, assignmentId: "preview" }}
           previewMode
           role={role}
@@ -1363,6 +1683,7 @@ function EnglishAssignmentBuilder({ role, school, section, user }) {
 function AssignedEnglishWork({ actorUser = null, onGrade = null, previewMode = false, role, school, section, testMode = false, user }) {
   const [assignments, setAssignments] = useState([]);
   const [submissionsByAssignment, setSubmissionsByAssignment] = useState({});
+  const [studentSubmissionsByAssignment, setStudentSubmissionsByAssignment] = useState({});
   const [openAssignment, setOpenAssignment] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -1426,9 +1747,44 @@ function AssignedEnglishWork({ actorUser = null, onGrade = null, previewMode = f
     return () => unsubscribes.forEach((unsubscribe) => unsubscribe());
   }, [assignments, onGrade, school, section]);
 
+  useEffect(() => {
+    if (onGrade || previewMode || !school || !section || !assignments.length || !user) {
+      setStudentSubmissionsByAssignment({});
+      return undefined;
+    }
+
+    const unsubscribes = assignments.map((assignment) => {
+      const updateSubmission = (submission) =>
+        setStudentSubmissionsByAssignment((current) => ({
+          ...current,
+          [assignment.assignmentId]: submission,
+        }));
+
+      return testMode
+        ? subscribeEnglishDemoSubmission(
+            school,
+            section,
+            assignment.assignmentId,
+            user.demoStudentId,
+            updateSubmission,
+            () => {},
+          )
+        : subscribeEnglishSubmission(
+            school,
+            section,
+            assignment.assignmentId,
+            user.uid,
+            updateSubmission,
+            () => {},
+          );
+    });
+
+    return () => unsubscribes.forEach((unsubscribe) => unsubscribe());
+  }, [assignments, onGrade, previewMode, school, section, testMode, user]);
+
   if (openAssignment) {
     return (
-      <EnglishStudentAssignment
+      <EnglishStudentWorkspace
         actorUser={actorUser}
         assignment={openAssignment}
         previewMode={previewMode}
@@ -1457,6 +1813,7 @@ function AssignedEnglishWork({ actorUser = null, onGrade = null, previewMode = f
           {assignments.map((assignment) => {
             const counts = submissionsByAssignment[assignment.assignmentId] || {};
             const doneCount = (counts.real || 0) + (counts.demo || 0);
+            const studentSubmission = studentSubmissionsByAssignment[assignment.assignmentId] || null;
 
             return (
               <article className="assigned-work-row" key={assignment.assignmentId}>
@@ -1464,6 +1821,26 @@ function AssignedEnglishWork({ actorUser = null, onGrade = null, previewMode = f
                   <p className="eyebrow">{assignment.assignmentType}</p>
                   <h3>{assignment.title}</h3>
                   <p className="helper-copy">{assignment.sourceRefs?.[0]?.title || assignment.textBlocks?.[0]?.title || ""}</p>
+                  {!onGrade ? (
+                    <dl className="student-assignment-meta">
+                      <div>
+                        <dt>Unit</dt>
+                        <dd>{assignment.unitId || "English 1"}</dd>
+                      </div>
+                      <div>
+                        <dt>Due</dt>
+                        <dd>{formatDate(assignment.dueDate)}</dd>
+                      </div>
+                      <div>
+                        <dt>Status</dt>
+                        <dd>{getFriendlyStatus(studentSubmission, previewMode)}</dd>
+                      </div>
+                      <div>
+                        <dt>Grade</dt>
+                        <dd>{studentSubmission ? `${getSubmissionPercent(studentSubmission)}%` : "--"}</dd>
+                      </div>
+                    </dl>
+                  ) : null}
                 </div>
                 {onGrade ? (
                   <div>
@@ -1503,6 +1880,24 @@ function buildRosterRows({ demoRoster, demoSubmissions, roster, submissions }) {
 }
 
 function AnswerDisplay({ answer }) {
+  if (Array.isArray(answer)) {
+    return (
+      <div className="annotation-review-list">
+        {answer.length ? (
+          answer.map((note, index) => (
+            <article className="annotation-note-card" key={note.noteId || index}>
+              <p className="eyebrow">{note.reference || "No reference"}</p>
+              <h4>{note.noteType || "Note"}</h4>
+              <p>{note.noteText || "--"}</p>
+            </article>
+          ))
+        ) : (
+          <p>--</p>
+        )}
+      </div>
+    );
+  }
+
   if (answer && typeof answer === "object") {
     return (
       <dl className="detail-list assignment-detail-list">

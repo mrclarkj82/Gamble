@@ -135,6 +135,14 @@ function getTeacherReviewedQuestions(questions = []) {
 }
 
 function answerIsFilled(answer) {
+  if (Array.isArray(answer)) {
+    return answer.some((item) =>
+      item && typeof item === "object"
+        ? Object.values(item).some((value) => String(value || "").trim())
+        : String(item || "").trim(),
+    );
+  }
+
   if (answer && typeof answer === "object") {
     return Object.values(answer).some((value) => String(value || "").trim());
   }
@@ -319,6 +327,18 @@ function getProgressStatus({ answeredCount, totalQuestions }) {
   return percent >= 80 ? "nearly_done" : "working";
 }
 
+function countRequiredAnswered(assignment, answers = {}) {
+  const questions = assignment.questions || [];
+  return questions.filter((question) => {
+    if (question.optional) return false;
+    return answerIsFilled(answers[question.questionId]);
+  }).length;
+}
+
+function countRequiredTotal(assignment) {
+  return (assignment.questions || []).filter((question) => !question.optional).length;
+}
+
 async function writeEnglishProgress({
   actorUser = null,
   answers = {},
@@ -351,6 +371,8 @@ async function writeEnglishProgress({
 
   const totalQuestions = (assignment.questions || []).length;
   const answeredCount = countAnswered(answers);
+  const requiredAnsweredCount = countRequiredAnswered(assignment, answers);
+  const requiredTotalCount = countRequiredTotal(assignment);
   const progressPercent = totalQuestions
     ? Math.round((answeredCount / totalQuestions) * 100)
     : 0;
@@ -371,6 +393,8 @@ async function writeEnglishProgress({
     status,
     answeredCount,
     totalQuestions,
+    requiredAnsweredCount,
+    requiredTotalCount,
     annotationCount,
     draftWordCount,
     progressPercent,
@@ -588,9 +612,18 @@ export async function recordEnglishAnswerProgress({
   testMode = false,
   user,
 }) {
-  const { annotations, shortResponses } = splitEnglishAnswers(assignment, answers);
+  const { annotations, paragraphResponse, shortResponses, vocabularyResponses } = splitEnglishAnswers(assignment, answers);
   const annotationCount = countAnswered(annotations);
-  const draftWordCount = Object.values(shortResponses)
+  const draftWordCount = [
+    ...Object.values(shortResponses),
+    ...Object.values(paragraphResponse),
+    ...Object.values(vocabularyResponses),
+  ]
+    .map((answer) =>
+      answer && typeof answer === "object" && !Array.isArray(answer)
+        ? Object.values(answer).join(" ")
+        : String(answer || ""),
+    )
     .join(" ")
     .split(/\s+/)
     .filter(Boolean).length;
@@ -749,7 +782,19 @@ async function submitEnglishWork({
       annotationCount: countAnswered(annotations),
       assignment,
       attemptNumber,
-      draftWordCount: Object.values(shortResponses).join(" ").split(/\s+/).filter(Boolean).length,
+      draftWordCount: [
+        ...Object.values(shortResponses),
+        ...Object.values(paragraphResponse),
+        ...Object.values(vocabularyResponses),
+      ]
+        .map((answer) =>
+          answer && typeof answer === "object" && !Array.isArray(answer)
+            ? Object.values(answer).join(" ")
+            : String(answer || ""),
+        )
+        .join(" ")
+        .split(/\s+/)
+        .filter(Boolean).length,
       gradePercent: grading.gradePercent,
       isDemo,
       role,

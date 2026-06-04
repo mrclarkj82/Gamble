@@ -1624,6 +1624,34 @@ h2 {
   resize: vertical;
 }
 
+.english-student-workspace {
+  display: grid;
+  gap: 18px;
+}
+
+.english-workspace-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.95fr) minmax(380px, 1.05fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.english-reading-column,
+.english-writing-column {
+  display: grid;
+  gap: 16px;
+}
+
+.english-reading-column {
+  position: sticky;
+  top: 16px;
+  align-self: start;
+}
+
+.english-workspace-meta {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
 .paragraph-response-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -1718,6 +1746,26 @@ h2 {
   padding: 10px 12px;
 }
 
+.annotation-note-editor,
+.annotation-review-list {
+  display: grid;
+  gap: 12px;
+}
+
+.annotation-note-card {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 12px;
+}
+
+.annotation-note-card label {
+  display: grid;
+  gap: 8px;
+}
+
 .assigned-work-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(80px, auto) auto;
@@ -1744,6 +1792,31 @@ h2 {
 .assigned-work-row strong {
   color: var(--ink);
   font-size: 1.2rem;
+}
+
+.student-assignment-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+  margin: 12px 0 0;
+}
+
+.student-assignment-meta div {
+  display: grid;
+  gap: 2px;
+}
+
+.student-assignment-meta dt {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.student-assignment-meta dd {
+  color: var(--ink);
+  font-weight: 800;
+  margin: 0;
 }
 
 .rubric-preview-panel,
@@ -2004,6 +2077,17 @@ h2 {
 @keyframes spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 900px) {
+  .english-workspace-layout,
+  .paragraph-response-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .english-reading-column {
+    position: static;
   }
 }
 

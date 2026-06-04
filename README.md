@@ -17,6 +17,7 @@ Static Vite + React app for the Doral Red Rock student, teacher, and admin gatew
 - Adds an English 1 Scope & Sequence with full-year pacing, six units, standards tags, lesson placeholders, assignment placeholders, and Source Library resource slots.
 - Adds an English 1 Unit 1 pilot, `Close Reading Foundations`, with original Gamble-created practice texts, five pilot lessons, assignable Unit 1 English work, student/demo submissions, teacher review, feedback, resubmission, and progress records for future English monitoring.
 - Adds a reusable English Assignment Engine for Reading Check, Short Response, Annotation Assignment, Paragraph Response, and Vocabulary Practice work.
+- Adds a dedicated English student reading/writing workspace with reading/source panel, assignment panel, simple annotation notes, autosave/progress tracking, feedback, grades, and resubmission support.
 - Lets admin manage English 1 source-library records and lets teachers view approved resources or submit needs-review suggestions.
 - Lets teachers create actual Math assignments from the pre-built curriculum.
 - Generates problem previews and answer keys before assigning work.
@@ -33,7 +34,7 @@ Static Vite + React app for the Doral Red Rock student, teacher, and admin gatew
 
 ## What Is Not Built Yet
 
-This version intentionally does not include an advanced curriculum builder, the full English 1 course, copyrighted English readings or worksheets, full annotation/highlighting tools, a full English live-monitor dashboard, a full gradebook, Google Classroom sync, device/browser surveillance, Clever sync, Infinite Campus sync, parent accounts, or teacher-created curriculum from scratch. It does include basic generated-problem Math assignments, student submissions, in-app Math assignment progress monitoring, a static English 1 shell, an English 1 source-library system, one working English 1 Unit 1 pilot, and a reusable English assignment engine for the first five English work types.
+This version intentionally does not include an advanced curriculum builder, the full English 1 course, copyrighted English readings or worksheets, full text-highlighting tools, a full English live-monitor dashboard, a full gradebook, Google Classroom sync, device/browser surveillance, Clever sync, Infinite Campus sync, parent accounts, or teacher-created curriculum from scratch. It does include basic generated-problem Math assignments, student submissions, in-app Math assignment progress monitoring, a static English 1 shell, an English 1 source-library system, one working English 1 Unit 1 pilot, a reusable English assignment engine for the first five English work types, and a student-facing English reading/writing workspace.
 
 ## Accepted Accounts
 
@@ -216,7 +217,7 @@ Multiple-choice and selected-response questions are partially auto-graded. Annot
 
 ## English Assignment Engine
 
-Version 6.4 adds the reusable English assignment system used by the Unit 1 pilot and future English 1 units.
+Version 6.4 adds the reusable English assignment system used by the Unit 1 pilot and future English 1 units. Version 6.5 adds the student-facing English reading/writing workspace.
 
 Teachers/admin open an English 1 section, then use `Create Assignment` inside the English area. The builder can:
 
@@ -257,17 +258,29 @@ English assignment documents include `subject: "english"`, `courseId: "english-1
 
 Submission documents include objective answers, annotation notes, short responses, paragraph responses, vocabulary responses, auto-score fields, teacher score/final score, feedback, rubric scores, status, attempts, and resubmission metadata. Real student submissions use the `submissions/{studentUid}` path. Demo/test submissions use `demoSubmissions/{demoStudentId}` and are marked `isDemo: true`.
 
+The English student workspace opens from assigned English work inside a selected English 1 section. On desktop it uses a two-column reading/writing layout; on mobile it stacks the reading/source first and questions/writing second. Reading Check, Short Response, Annotation Assignment, Paragraph Response, and Vocabulary Practice are supported. Future placeholder types show a friendly unavailable message rather than crashing.
+
+Embedded original Gamble-created or approved embeddable texts show in the reading panel with paragraph numbers. Link-only sources are not embedded; students see the source metadata, the note `This reading opens from its original source.`, and an `Open Reading` button.
+
+Student answers autosave locally and, outside Student Preview, save debounced progress to:
+
+```text
+schools/{schoolId}/sections/{sectionId}/assignments/{assignmentId}/progress/{studentKey}
+```
+
+Progress records include `subject: "english"`, `courseId: "english-1"`, `answeredCount`, `totalQuestions`, `requiredAnsweredCount`, `requiredTotalCount`, `annotationCount`, `draftWordCount`, `progressPercent`, status, activity timestamps, attempt number, score, and grade percent where available.
+
 Auto-grading currently covers multiple choice, true/false, selected response, and vocabulary multiple choice. Written responses, paragraph responses, annotation quality, and original vocabulary sentences are marked for teacher review. The roster grading view remains the clean table pattern with `View Work`, row reset, refresh, and clear-all controls.
 
 Source safety:
 
 - Original Gamble-created texts can be embedded.
 - Approved link-only resources are stored as source references only.
-- Link-only resources show `Open source reading` instead of copied full text.
+- Link-only resources show `Open Reading` instead of copied full text.
 - Needs-review or rejected resources cannot be assigned from the builder.
 - No copyrighted full texts are added by Version 6.4.
 
-Student Preview is still local/read-only. It does not create submissions or progress records. Test as Student uses demo roster students and writes demo submissions/progress only. English progress records are written to the same assignment progress path as Math so a later Version 6.6 English Live Monitor can reuse the data shape. The existing Math Live Monitor UI is not expanded into a full English monitor in Version 6.4.
+Student Preview is local/read-only. It allows typing and Preview Submit, but it only saves browser-local drafts and does not create Firestore submissions or progress records. Test as Student uses demo roster students and writes demo submissions/progress only. English progress records are written to the same assignment progress path shape as Math so a later Version 6.6 English Live Monitor can reuse the data shape. The existing Math Live Monitor UI is not expanded into a full English monitor in Version 6.5.
 
 ## English 1 Source Library
 

@@ -333,6 +333,8 @@ service cloud.firestore {
         "answeredCount",
         "totalProblems",
         "totalQuestions",
+        "requiredAnsweredCount",
+        "requiredTotalCount",
         "annotationCount",
         "draftWordCount",
         "progressPercent",
