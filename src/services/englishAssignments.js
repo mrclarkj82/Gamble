@@ -12,6 +12,7 @@ import {
   where,
   writeBatch,
 } from "firebase/firestore";
+import { DEFAULT_ENGLISH_RUBRIC } from "../data/englishAssignmentTypes";
 import { englishUnit1AssignmentTemplates } from "../data/englishUnit1Pilot";
 import { db } from "../firebase";
 
@@ -114,16 +115,35 @@ function getQuestionTotal(questions = []) {
 
 function getAutoGradableQuestions(questions = []) {
   return questions.filter((question) =>
-    ["multiple_choice", "select"].includes(question.type) && question.correctAnswer,
+    ["multiple_choice", "select", "true_false", "vocabulary_multiple_choice", "matching"].includes(question.type) &&
+    question.correctAnswer,
   );
 }
 
 function getTeacherReviewedQuestions(questions = []) {
-  return questions.filter((question) => question.teacherReviewed || question.type === "short_response" || question.type === "annotation");
+  return questions.filter((question) =>
+    question.teacherReviewed ||
+    [
+      "short_response",
+      "short_answer",
+      "annotation",
+      "paragraph_response",
+      "vocabulary_sentence",
+      "discussion_response",
+    ].includes(question.type),
+  );
+}
+
+function answerIsFilled(answer) {
+  if (answer && typeof answer === "object") {
+    return Object.values(answer).some((value) => String(value || "").trim());
+  }
+
+  return String(answer || "").trim().length > 0;
 }
 
 function countAnswered(answers = {}) {
-  return Object.values(answers).filter((answer) => String(answer || "").trim()).length;
+  return Object.values(answers).filter(answerIsFilled).length;
 }
 
 function getAttemptNumber(existingSubmission) {
@@ -162,20 +182,38 @@ function getProgressStudentEmail({ user }) {
 
 function splitEnglishAnswers(assignment, answers = {}) {
   const annotations = {};
+  const grammarResponses = {};
+  const paragraphResponse = {};
   const shortResponses = {};
   const selectedEvidence = {};
+  const vocabularyResponses = {};
 
   (assignment.questions || []).forEach((question) => {
     const value = answers[question.questionId] || "";
 
     if (question.type === "annotation") annotations[question.questionId] = value;
-    if (question.type === "short_response") shortResponses[question.questionId] = value;
+    if (["short_response", "short_answer"].includes(question.type)) {
+      shortResponses[question.questionId] = value;
+    }
+    if (question.type === "paragraph_response") {
+      paragraphResponse[question.questionId] = value;
+    }
+    if (question.type === "vocabulary_sentence" || question.type === "vocabulary_multiple_choice") {
+      vocabularyResponses[question.questionId] = value;
+    }
+    if (question.type === "grammar_practice") {
+      grammarResponses[question.questionId] = value;
+    }
     if (question.prompt?.toLowerCase().includes("evidence")) {
       selectedEvidence[question.questionId] = value;
     }
   });
 
-  return { annotations, selectedEvidence, shortResponses };
+  return { annotations, grammarResponses, paragraphResponse, selectedEvidence, shortResponses, vocabularyResponses };
+}
+
+function normalizeAnswer(value) {
+  return String(value || "").trim().toLowerCase();
 }
 
 export function gradeEnglishAnswers(assignment, answers = {}) {
@@ -188,7 +226,7 @@ export function gradeEnglishAnswers(assignment, answers = {}) {
   autoQuestions.forEach((question) => {
     const points = Number(question.points) || 0;
     autoPossible += points;
-    if (String(answers[question.questionId] || "").trim() === question.correctAnswer) {
+    if (normalizeAnswer(answers[question.questionId]) === normalizeAnswer(question.correctAnswer)) {
       autoScore += points;
     }
   });
@@ -206,6 +244,72 @@ export function gradeEnglishAnswers(assignment, answers = {}) {
     teacherPossible,
     teacherReviewRequired: teacherQuestions.length > 0,
     totalPossible,
+  };
+}
+
+function buildSourceRefs(sourceRefs = []) {
+  return sourceRefs.map((source) => ({
+    sourceId: source.sourceId || source.textId || "",
+    title: source.title || "",
+    author: source.author || "",
+    providerName: source.providerName || source.sourceType || "Gamble Education",
+    sourceUrl: source.sourceUrl || "",
+    licenseType: source.licenseType || "",
+    copyrightStatus: source.copyrightStatus || "",
+    canEmbed: source.canEmbed === true,
+    canLink: source.canLink !== false,
+    attributionText: source.attributionText || "",
+    isOriginalGambleText: source.isOriginalGambleText === true,
+  }));
+}
+
+function normalizeAssignmentDraft(draft = {}) {
+  const questions = Array.isArray(draft.questions) ? draft.questions : [];
+  const sourceRefs = buildSourceRefs(draft.sourceRefs || []);
+  const rubric = draft.rubricEnabled ? draft.rubric || DEFAULT_ENGLISH_RUBRIC : [];
+  const title = String(draft.title || "").trim();
+
+  if (!title) {
+    throw new EnglishAssignmentError("missing-title", "Enter an assignment title.");
+  }
+
+  if (!draft.assignmentType) {
+    throw new EnglishAssignmentError("missing-type", "Choose an English assignment type.");
+  }
+
+  const textIds = Array.isArray(draft.textIds) ? draft.textIds : [];
+  const textBlocks = Array.isArray(draft.textBlocks) ? draft.textBlocks : [];
+
+  if (!sourceRefs.length && !textIds.length && !textBlocks.length) {
+    throw new EnglishAssignmentError(
+      "missing-source",
+      "Select an approved source or original Gamble text before assigning this work.",
+    );
+  }
+
+  if (!questions.length) {
+    throw new EnglishAssignmentError("missing-questions", "Add at least one question or prompt.");
+  }
+
+  return {
+    unitId: draft.unitId || "english-1-unit-1",
+    lessonId: draft.lessonId || "",
+    assignmentTemplateId: draft.assignmentTemplateId || "",
+    assignmentType: draft.assignmentType,
+    assignmentTypeId: draft.assignmentTypeId || "",
+    title,
+    description: String(draft.description || "").trim(),
+    directions: String(draft.instructions || draft.directions || "").trim(),
+    instructions: String(draft.instructions || draft.directions || "").trim(),
+    sourceRefs,
+    textBlocks,
+    textIds,
+    questions,
+    prompts: Array.isArray(draft.prompts) ? draft.prompts : [],
+    vocabularyItems: Array.isArray(draft.vocabularyItems) ? draft.vocabularyItems : [],
+    grammarItems: Array.isArray(draft.grammarItems) ? draft.grammarItems : [],
+    rubric,
+    rubricEnabled: rubric.length > 0,
   };
 }
 
@@ -259,6 +363,8 @@ async function writeEnglishProgress({
     subject: "english",
     courseId: "english-1",
     unitId: assignment.unitId || "english-1-unit-1",
+    lessonId: assignment.lessonId || "",
+    assignmentType: assignment.assignmentType || "",
     studentName: getProgressStudentName({ isDemo, user }),
     studentEmail: getProgressStudentEmail({ user }),
     isDemo,
@@ -357,6 +463,7 @@ export function subscribeEnglishDemoSubmissions(school, section, assignmentId, o
 }
 
 export async function createEnglishSectionAssignment({
+  assignmentDraft = null,
   assignmentTemplateId,
   dueDate,
   feedbackSetting = "after-submit",
@@ -373,14 +480,29 @@ export async function createEnglishSectionAssignment({
     );
   }
 
-  const template = getTemplate(assignmentTemplateId);
-  if (!template) {
+  const template = assignmentDraft ? null : getTemplate(assignmentTemplateId);
+  if (!assignmentDraft && !template) {
     throw new EnglishAssignmentError("missing-template", "Choose a Unit 1 assignment.");
   }
 
+  const normalizedDraft = assignmentDraft
+    ? normalizeAssignmentDraft(assignmentDraft)
+    : normalizeAssignmentDraft({
+        assignmentTemplateId: template.assignmentTemplateId,
+        assignmentType: template.assignmentType,
+        courseId: template.courseId,
+        description: template.purpose,
+        instructions: template.instructions,
+        lessonId: template.lessonId || "",
+        questions: template.questions || [],
+        sourceRefs: [],
+        textIds: template.textIds || [],
+        title: template.title,
+        unitId: template.unitId,
+      });
   const assignmentRef = doc(assignmentCollection(school, section));
   const assignmentId = assignmentRef.id;
-  const questions = template.questions || [];
+  const questions = normalizedDraft.questions || [];
   const payload = {
     assignmentId,
     schoolId: getSchoolId(school),
@@ -394,25 +516,37 @@ export async function createEnglishSectionAssignment({
     curriculumId: "english-1",
     curriculumTitle: "English 1",
     curriculumSubject: "English Language Arts",
-    unitId: template.unitId,
-    lessonId: template.lessonId || "",
-    assignmentTemplateId: template.assignmentTemplateId,
-    assignmentType: template.assignmentType,
-    title: template.title,
-    directions: template.instructions,
-    textIds: template.textIds || [],
+    unitId: normalizedDraft.unitId,
+    lessonId: normalizedDraft.lessonId || "",
+    assignmentTemplateId: normalizedDraft.assignmentTemplateId,
+    assignmentType: normalizedDraft.assignmentType,
+    assignmentTypeId: normalizedDraft.assignmentTypeId || "",
+    title: normalizedDraft.title,
+    description: normalizedDraft.description,
+    directions: normalizedDraft.instructions,
+    instructions: normalizedDraft.instructions,
+    sourceRefs: normalizedDraft.sourceRefs,
+    textBlocks: normalizedDraft.textBlocks,
+    textIds: normalizedDraft.textIds || [],
     questions,
+    prompts: normalizedDraft.prompts,
+    vocabularyItems: normalizedDraft.vocabularyItems,
+    grammarItems: normalizedDraft.grammarItems,
+    rubric: normalizedDraft.rubric,
+    rubricEnabled: normalizedDraft.rubricEnabled,
     problemCount: questions.length,
     dueDate: dueDate || "",
     feedbackMode: feedbackSetting,
     feedbackSetting,
     maxAttempts: Math.max(1, Math.min(Number(maxAttempts) || 1, 10)),
     timeLimitMinutes: 0,
+    allowResubmission: true,
     active: true,
     teacherUid: user.uid,
     teacherName: user.displayName || user.email || "Teacher",
     teacherEmail: user.email || "",
     assignedByUid: user.uid,
+    assignedByName: user.displayName || user.email || "Teacher",
     assignedAt: serverTimestamp(),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -520,17 +654,33 @@ async function submitEnglishWork({
   const attemptNumber = getAttemptNumber(existingSubmission);
   const maxAttempts = Math.max(getMaxAttempts(existingSubmission, assignment), attemptNumber);
   const grading = gradeEnglishAnswers(assignment, answers);
-  const { annotations, selectedEvidence, shortResponses } = splitEnglishAnswers(assignment, answers);
+  const {
+    annotations,
+    grammarResponses,
+    paragraphResponse,
+    selectedEvidence,
+    shortResponses,
+    vocabularyResponses,
+  } = splitEnglishAnswers(assignment, answers);
+  const submissionStatus = attemptNumber > 1
+    ? "resubmitted"
+    : grading.teacherReviewRequired
+      ? "awaiting_teacher_review"
+      : "auto_graded";
   const attempt = {
     attemptNumber,
     answers,
     annotations,
     autoPossible: grading.autoPossible,
     autoScore: grading.autoScore,
+    grammarResponses,
     gradePercent: grading.gradePercent,
+    paragraphResponse,
     selectedEvidence,
     shortResponses,
+    status: submissionStatus,
     submittedAt: new Date().toISOString(),
+    vocabularyResponses,
   };
   const attempts = [...(existingSubmission?.attempts || []), attempt];
   const basePayload = {
@@ -541,10 +691,15 @@ async function submitEnglishWork({
     subject: "english",
     courseId: "english-1",
     unitId: assignment.unitId || "english-1-unit-1",
+    lessonId: assignment.lessonId || "",
+    assignmentType: assignment.assignmentType || "",
     answers,
     annotations,
+    grammarResponses,
+    paragraphResponse,
     selectedEvidence,
     shortResponses,
+    vocabularyResponses,
     correctCount: grading.autoScore,
     score: grading.autoScore,
     autoScore: grading.autoScore,
@@ -554,7 +709,7 @@ async function submitEnglishWork({
     percent: grading.gradePercent,
     gradePercent: grading.gradePercent,
     teacherReviewRequired: grading.teacherReviewRequired,
-    status: attemptNumber > 1 ? "resubmitted" : "submitted",
+    status: submissionStatus,
     attemptNumber,
     maxAttempts,
     attempts,
@@ -562,6 +717,12 @@ async function submitEnglishWork({
     teacherFeedback: existingSubmission?.teacherFeedback || "",
     resubmissionAllowed: false,
     resubmissionDueDate: existingSubmission?.resubmissionDueDate || "",
+    resubmissionRequestedAt: "",
+    resubmittedAt: attemptNumber > 1 ? serverTimestamp() : existingSubmission?.resubmittedAt || "",
+    rubricScores: existingSubmission?.rubricScores || {},
+    teacherScore: existingSubmission?.teacherScore ?? null,
+    finalScore: existingSubmission?.finalScore ?? grading.autoScore,
+    totalPoints: grading.totalPossible || (assignment.questions || []).length,
     isDemo,
     submittedAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -619,6 +780,7 @@ export async function reviewEnglishSubmission({
   finalScore,
   resubmissionAllowed = false,
   resubmissionDueDate = "",
+  rubricScores = {},
   role,
   school,
   section,
@@ -657,6 +819,9 @@ export async function reviewEnglishSubmission({
   await updateDoc(submissionRef, {
     feedback: String(feedback || "").trim(),
     teacherFeedback: String(feedback || "").trim(),
+    teacherScore: score,
+    finalScore: score,
+    totalPoints: possible,
     score,
     gradePercent,
     percent: gradePercent,
@@ -666,9 +831,11 @@ export async function reviewEnglishSubmission({
       : currentMaxAttempts,
     resubmissionAllowed,
     resubmissionDueDate: resubmissionAllowed ? resubmissionDueDate || "" : "",
+    resubmissionRequestedAt: resubmissionAllowed ? serverTimestamp() : "",
+    rubricScores,
     reviewedByEmail: actorUser.email || "",
     reviewedByUid: actorUser.uid,
-    status: resubmissionAllowed ? "needs_revision" : "graded",
+    status: resubmissionAllowed ? "needs_resubmission" : "graded",
     updatedAt: serverTimestamp(),
   });
 

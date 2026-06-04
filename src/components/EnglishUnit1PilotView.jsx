@@ -5,6 +5,7 @@ import {
   englishUnit1Pilot,
   englishUnit1Texts,
 } from "../data/englishUnit1Pilot";
+import EnglishAssignmentEngine from "./EnglishAssignmentEngine";
 import {
   clearEnglishSubmissions,
   createEnglishSectionAssignment,
@@ -1260,23 +1261,15 @@ export default function EnglishUnit1PilotView({
       ) : null}
 
       {canAssign && !previewMode && !testMode ? (
-        <>
-          <section className="assignment-setup-launch">
-            <button
-              className="primary-button fit-button"
-              onClick={() => setShowSetup((current) => !current)}
-              type="button"
-            >
-              {showSetup ? "Hide Unit 1 Assign" : "Assign Unit 1 Work"}
-            </button>
-          </section>
-          {showSetup ? (
-            <TeacherAssignmentSetup role={role} school={school} section={section} user={user} />
-          ) : null}
-          <TeacherAssignedEnglishWork onGrade={setGradingAssignment} school={school} section={section} />
-        </>
+        <EnglishAssignmentEngine
+          canAssign
+          role={role}
+          school={school}
+          section={section}
+          user={user}
+        />
       ) : (
-        <AssignedEnglishWork
+        <EnglishAssignmentEngine
           actorUser={actorUser}
           previewMode={previewMode}
           role={role}

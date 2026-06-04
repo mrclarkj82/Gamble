@@ -1592,6 +1592,37 @@ h2 {
   gap: 18px;
 }
 
+.english-assignment-builder {
+  margin-top: 18px;
+}
+
+.english-builder-form,
+.english-builder-stack,
+.english-source-panel,
+.paragraph-response-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.paragraph-response-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.full-width-field {
+  grid-column: 1 / -1;
+}
+
+.checkbox-label {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  font-weight: 800;
+}
+
+.checkbox-label input {
+  width: auto;
+}
+
 .english-text-list,
 .english-question-list,
 .assigned-work-list {
@@ -1604,6 +1635,14 @@ h2 {
   border-radius: 8px;
   background: #ffffff;
   padding: 18px;
+}
+
+.link-only-source-card {
+  background: #fbfdff;
+}
+
+.source-link-button {
+  justify-self: start;
 }
 
 .english-passage {
@@ -1685,6 +1724,27 @@ h2 {
 .assigned-work-row strong {
   color: var(--ink);
   font-size: 1.2rem;
+}
+
+.rubric-preview-panel,
+.rubric-score-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.rubric-grid,
+.rubric-score-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.rubric-grid span {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #ffffff;
+  font-weight: 800;
+  padding: 10px 12px;
 }
 
 .source-library-shell {
