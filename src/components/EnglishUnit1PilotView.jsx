@@ -3,6 +3,7 @@ import {
   ENGLISH_UNIT_1_ID,
   englishUnit1AssignmentTemplates,
   englishUnit1Pilot,
+  englishUnit1SourceRefs,
   englishUnit1Texts,
 } from "../data/englishUnit1Pilot";
 import EnglishAssignmentEngine from "./EnglishAssignmentEngine";
@@ -108,6 +109,30 @@ function buildRosterRows({ demoRoster, demoSubmissions, roster, submissions }) {
 }
 
 function TextPreview({ text }) {
+  if (!text.paragraphs?.length) {
+    return (
+      <article className="english-text-card link-only-source-card">
+        <div className="section-heading-row compact-heading">
+          <div>
+            <p className="eyebrow">{String(text.textType || text.resourceType || "source").replace(/_/g, " ")}</p>
+            <h3>{text.title}</h3>
+            <p className="helper-copy">
+              {text.author} | {text.providerName || "External source"} | {text.recommendedGradeLevel || "Grade 9"}
+            </p>
+          </div>
+          <span className="source-use-pill link-only">Link Only</span>
+        </div>
+        <p className="status-message success">
+          This reading opens from Project Gutenberg. Return to Gamble to answer the questions.
+        </p>
+        {text.attributionText ? <p className="helper-copy">{text.attributionText}</p> : null}
+        <a className="secondary-button fit-button source-link-button" href={text.sourceUrl} rel="noreferrer" target="_blank">
+          Open Reading
+        </a>
+      </article>
+    );
+  }
+
   return (
     <article className="english-text-card">
       <div className="section-heading-row compact-heading">
@@ -148,7 +173,7 @@ function UnitOverview({ teacherMode = false }) {
         </div>
         <div>
           <dt>Texts</dt>
-          <dd>{englishUnit1Pilot.texts.length} original practice texts</dd>
+          <dd>{englishUnit1Pilot.texts.length + (englishUnit1Pilot.sourceRefs?.length || 0)} source texts</dd>
         </div>
         <div>
           <dt>Lessons</dt>
@@ -168,11 +193,18 @@ function UnitOverview({ teacherMode = false }) {
         </ul>
       </div>
       {teacherMode ? (
-        <div className="tag-row">
-          {englishUnit1Pilot.skills.map((skill) => (
-            <span key={skill}>{skill}</span>
-          ))}
-        </div>
+        <>
+          <div className="tag-row">
+            {englishUnit1Pilot.skills.map((skill) => (
+              <span key={skill}>{skill}</span>
+            ))}
+          </div>
+          <div className="tag-row">
+            {(englishUnit1Pilot.standardsTags || []).map((standard) => (
+              <span key={standard}>{standard}</span>
+            ))}
+          </div>
+        </>
       ) : null}
     </section>
   );
@@ -1249,12 +1281,12 @@ export default function EnglishUnit1PilotView({
       {!studentMode || previewMode || testMode ? (
         <section className="curriculum-library english-unit-panel">
           <div>
-            <p className="eyebrow">Original texts</p>
-            <h3>Copyright-Safe Practice Texts</h3>
+            <p className="eyebrow">Unit 1 sources</p>
+            <h3>Copyright-Safe Practice Texts and Anchor Reading</h3>
           </div>
           <div className="english-text-list">
-            {englishUnit1Texts.map((text) => (
-              <TextPreview key={text.textId} text={text} />
+            {[...englishUnit1Texts, ...englishUnit1SourceRefs].map((text) => (
+              <TextPreview key={text.textId || text.sourceId} text={text} />
             ))}
           </div>
         </section>

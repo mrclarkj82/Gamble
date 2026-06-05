@@ -464,6 +464,7 @@ service cloud.firestore {
       && request.resource.data.resourceType is string
       && request.resource.data.licenseType in [
         "public_domain",
+        "project_gutenberg_public_domain",
         "cc_by",
         "cc_by_sa",
         "cc_by_nc",
@@ -494,6 +495,7 @@ service cloud.firestore {
         request.resource.data.approvalStatus == "approved"
         && request.resource.data.licenseType in [
           "public_domain",
+          "project_gutenberg_public_domain",
           "government_public_domain",
           "cc_by",
           "cc_by_sa",

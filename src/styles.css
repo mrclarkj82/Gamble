@@ -808,6 +808,14 @@ h2 {
   margin-top: 20px;
 }
 
+.unit-template-panel {
+  margin-bottom: 20px;
+}
+
+.preserve-lines {
+  white-space: pre-line;
+}
+
 .grading-page {
   padding: 0;
   overflow: hidden;

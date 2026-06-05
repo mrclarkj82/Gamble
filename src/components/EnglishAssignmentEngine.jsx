@@ -5,7 +5,7 @@ import {
   READY_ENGLISH_ASSIGNMENT_TYPES,
   getEnglishAssignmentType,
 } from "../data/englishAssignmentTypes";
-import { ENGLISH_UNIT_1_ID, englishUnit1Texts } from "../data/englishUnit1Pilot";
+import { ENGLISH_UNIT_1_ID, englishUnit1AssignmentTemplates, englishUnit1Texts } from "../data/englishUnit1Pilot";
 import {
   clearEnglishSubmissions,
   createEnglishSectionAssignment,
@@ -819,7 +819,7 @@ function SourcePanel({ assignment }) {
               </span>
             </div>
             <p className="status-message success">
-              This reading opens from its original source.
+              This reading opens from {source.providerName || "its original source"}. Return to Gamble to answer the questions.
             </p>
             {source.attributionText ? <p className="helper-copy">{source.attributionText}</p> : null}
             <a className="secondary-button fit-button source-link-button" href={source.sourceUrl} rel="noreferrer" target="_blank">
@@ -1662,6 +1662,236 @@ function AssignmentBuilderFields({ config, setConfig, typeId }) {
         </article>
       ))}
     </div>
+  );
+}
+
+function buildTemplatePreviewAssignment(template) {
+  return {
+    ...template,
+    assignmentId: `preview-${template.assignmentTemplateId}`,
+    active: true,
+    dueDate: "",
+    feedbackSetting: "after-submit",
+    maxAttempts: 1,
+    problemCount: template.questions?.length || 0,
+    subject: "english",
+    courseId: "english-1",
+    curriculumId: "english-1",
+    curriculumTitle: "English 1",
+    curriculumSubject: "English Language Arts",
+  };
+}
+
+function Unit1TemplatePreview({ template }) {
+  const totalPoints = (template.questions || []).reduce(
+    (sum, question) => sum + (Number(question.points) || 0),
+    0,
+  );
+
+  return (
+    <section className="problem-preview-panel unit-template-preview">
+      <div>
+        <p className="eyebrow">Teacher Preview</p>
+        <h4>{template.title}</h4>
+        <p className="helper-copy">{template.description || template.purpose}</p>
+      </div>
+
+      <dl className="detail-list assignment-detail-list">
+        <div>
+          <dt>Type</dt>
+          <dd>{template.assignmentType}</dd>
+        </div>
+        <div>
+          <dt>Points</dt>
+          <dd>{totalPoints}</dd>
+        </div>
+        <div>
+          <dt>Auto-grade</dt>
+          <dd>{template.autoGrade ? "Objective items" : "No"}</dd>
+        </div>
+        <div>
+          <dt>Teacher Review</dt>
+          <dd>{template.teacherReviewRequired ? "Written responses" : "No"}</dd>
+        </div>
+      </dl>
+
+      <SourcePanel assignment={buildTemplatePreviewAssignment(template)} />
+
+      <section className="student-problem-card">
+        <p className="eyebrow">Instructions</p>
+        <p className="helper-copy preserve-lines">{template.instructions}</p>
+      </section>
+
+      <div className="english-question-list">
+        {(template.questions || []).map((question, index) => (
+          <article className="student-problem-card" key={question.questionId}>
+            <p className="eyebrow">
+              Question {index + 1} | {question.type.replace(/_/g, " ")} | {question.points || 0} pts
+            </p>
+            <h4>{question.prompt}</h4>
+            {question.options?.length ? (
+              <ul className="scope-list">
+                {question.options.map((option) => (
+                  <li key={option}>{option}</li>
+                ))}
+              </ul>
+            ) : null}
+            {question.correctAnswer ? (
+              <p className="answer-key">
+                Answer key: <strong>{question.correctAnswer}</strong>
+              </p>
+            ) : question.expectedAnswer ? (
+              <p className="muted-message">Expected answer guidance: {question.expectedAnswer}</p>
+            ) : (
+              <p className="muted-message">Teacher-reviewed written response.</p>
+            )}
+            {question.studentResponseStructure?.length ? (
+              <ul className="scope-list">
+                {question.studentResponseStructure.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            ) : null}
+          </article>
+        ))}
+      </div>
+
+      {template.rubricGuide?.length ? (
+        <section className="rubric-preview-panel">
+          <p className="eyebrow">Short Response Rubric</p>
+          <ul className="scope-list">
+            {template.rubricGuide.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      <p className="muted-message">
+        Written responses require teacher review. Preview mode does not create submissions or progress records.
+      </p>
+    </section>
+  );
+}
+
+function Unit1ReadyAssignmentPanel({ role, school, section, user }) {
+  const readyTemplates = englishUnit1AssignmentTemplates.filter((template) => template.status === "ready");
+  const placeholderTemplates = englishUnit1AssignmentTemplates.filter((template) => template.status !== "ready");
+  const [templateId, setTemplateId] = useState(readyTemplates[0]?.assignmentTemplateId || "");
+  const selectedTemplate =
+    readyTemplates.find((template) => template.assignmentTemplateId === templateId) || readyTemplates[0];
+  const [setup, setSetup] = useState({
+    dueDate: "",
+    feedbackSetting: "after-submit",
+    maxAttempts: 1,
+  });
+  const [showPreview, setShowPreview] = useState(false);
+  const [message, setMessage] = useState("");
+  const [messageTone, setMessageTone] = useState("success");
+  const [isSaving, setIsSaving] = useState(false);
+
+  function updateSetup(field, value) {
+    setSetup((current) => ({ ...current, [field]: value }));
+  }
+
+  async function handleAssign(event) {
+    event.preventDefault();
+    if (!selectedTemplate) return;
+
+    setMessage("");
+    setIsSaving(true);
+
+    try {
+      await createEnglishSectionAssignment({
+        assignmentTemplateId: selectedTemplate.assignmentTemplateId,
+        dueDate: setup.dueDate,
+        feedbackSetting: setup.feedbackSetting,
+        maxAttempts: setup.maxAttempts,
+        role,
+        school,
+        section,
+        user,
+      });
+      setMessage(`${selectedTemplate.title} was assigned to ${section.sectionName}.`);
+      setMessageTone("success");
+    } catch (error) {
+      console.error("Unit 1 template assignment failed", error);
+      setMessage(error.message || "Unable to assign this Unit 1 assignment.");
+      setMessageTone("danger");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  if (!selectedTemplate) return null;
+
+  return (
+    <section className="assignment-setup-panel english-assignment-builder unit-template-panel">
+      <div className="section-heading-row compact-heading">
+        <div>
+          <p className="eyebrow">Unit 1 ready assignment</p>
+          <h3>{selectedTemplate.title}</h3>
+          <p className="helper-copy">{selectedTemplate.purpose}</p>
+        </div>
+      </div>
+
+      {message ? <p className={`status-message ${messageTone}`}>{message}</p> : null}
+
+      <form className="assignment-setup-grid" onSubmit={handleAssign}>
+        <label>
+          Assignment
+          <select onChange={(event) => setTemplateId(event.target.value)} value={selectedTemplate.assignmentTemplateId}>
+            {readyTemplates.map((template) => (
+              <option key={template.assignmentTemplateId} value={template.assignmentTemplateId}>
+                {template.title}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Due date
+          <input
+            onChange={(event) => updateSetup("dueDate", event.target.value)}
+            type="date"
+            value={setup.dueDate}
+          />
+        </label>
+        <label>
+          Max attempts
+          <input
+            max="10"
+            min="1"
+            onChange={(event) => updateSetup("maxAttempts", event.target.value)}
+            type="number"
+            value={setup.maxAttempts}
+          />
+        </label>
+        <label>
+          Feedback
+          <select onChange={(event) => updateSetup("feedbackSetting", event.target.value)} value={setup.feedbackSetting}>
+            <option value="after-submit">After submission</option>
+            <option value="teacher-review">Teacher review</option>
+          </select>
+        </label>
+        <button className="primary-button" disabled={isSaving} type="submit">
+          {isSaving ? "Assigning..." : "Assign Unit 1 Work"}
+        </button>
+      </form>
+
+      <div className="button-row">
+        <button className="secondary-button fit-button" onClick={() => setShowPreview((current) => !current)} type="button">
+          {showPreview ? "Hide Assignment 1 Preview" : "Preview Assignment 1"}
+        </button>
+      </div>
+
+      {showPreview ? <Unit1TemplatePreview template={selectedTemplate} /> : null}
+
+      {placeholderTemplates.length ? (
+        <p className="muted-message">
+          Coming next in Unit 1: {placeholderTemplates.map((template) => template.title).join(", ")}.
+        </p>
+      ) : null}
+    </section>
   );
 }
 
@@ -2960,6 +3190,7 @@ export default function EnglishAssignmentEngine({
   if (canAssign && !previewMode && !testMode) {
     return (
       <>
+        <Unit1ReadyAssignmentPanel role={role} school={school} section={section} user={user} />
         <section className="assignment-setup-launch">
           <button className="primary-button fit-button" onClick={() => setShowBuilder((current) => !current)} type="button">
             {showBuilder ? "Hide Manual Assignment Builder" : "Manually Create a New Assignment"}

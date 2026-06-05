@@ -26,6 +26,7 @@ export const resourceTypeOptions = [
 
 export const licenseTypeOptions = [
   "public_domain",
+  "project_gutenberg_public_domain",
   "cc_by",
   "cc_by_sa",
   "cc_by_nc",
@@ -47,6 +48,52 @@ export const copyrightStatusOptions = [
 export const approvalStatusOptions = ["approved", "needs_review", "rejected"];
 
 export const englishSourceLibrarySeeds = [
+  {
+    sourceId: "ohenry-after-twenty-years",
+    courseId: "english-1",
+    subject: "english",
+    title: "After Twenty Years",
+    author: "O. Henry",
+    providerName: "Project Gutenberg",
+    providerType: "public_domain_library",
+    resourceType: "short_story",
+    sourceUrl: "https://www.gutenberg.org/files/59637/59637-h/59637-h.htm",
+    canonicalUrl: "https://www.gutenberg.org/files/59637/59637-h/59637-h.htm",
+    gradeBand: "9-10",
+    recommendedGradeLevel: "Grade 9",
+    unitFit: ["english-1-unit-1", "english-1-unit-2"],
+    skillTags: [
+      "close_reading",
+      "inference",
+      "characterization",
+      "conflict",
+      "theme",
+      "textual_evidence",
+    ],
+    textType: "literary",
+    licenseType: "project_gutenberg_public_domain",
+    licenseName: "Project Gutenberg public-domain text",
+    licenseUrl: "https://www.gutenberg.org/policy/permission.html",
+    copyrightStatus: "public_domain_us",
+    publicDomainUS: true,
+    canLink: true,
+    canEmbed: false,
+    canModify: false,
+    requiresAttribution: true,
+    attributionText: "O. Henry, 'After Twenty Years,' from Project Gutenberg.",
+    usageNotes:
+      "Approved link-only anchor text for English 1 Unit 1. Students open the Project Gutenberg source and answer inside Gamble.",
+    restrictions:
+      "Link-only in this app version. Do not paste the full story into Gamble unless embedding policy is reviewed again.",
+    approvalStatus: "approved",
+    reviewedByUid: "system-seed",
+    reviewedAt: null,
+    createdByUid: "system-seed",
+    createdAt: null,
+    updatedByUid: "system-seed",
+    updatedAt: null,
+    active: true,
+  },
   {
     sourceId: "seed-project-gutenberg",
     courseId: "english-1",

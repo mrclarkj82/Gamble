@@ -19,6 +19,7 @@ Static Vite + React app for the Doral Red Rock student, teacher, and admin gatew
 - Adds a reusable English Assignment Engine for Reading Check, Short Response, Annotation Assignment, Paragraph Response, and Vocabulary Practice work.
 - Adds a dedicated English student reading/writing workspace with reading/source panel, assignment panel, simple annotation notes, autosave/progress tracking, feedback, grades, and resubmission support.
 - Adds an English 1 Live Monitor for selected section assignments with real and demo roster students, live progress, annotation counts, draft word counts, inactive status, summary filters, and View Work.
+- Adds the real English 1 Unit 1, `Reading Closely: Evidence, Inference, and Response`, with an approved Project Gutenberg link-only source for O. Henry's `After Twenty Years` and a ready-to-assign close reading check.
 - Lets admin manage English 1 source-library records and lets teachers view approved resources or submit needs-review suggestions.
 - Lets teachers create actual Math assignments from the pre-built curriculum.
 - Generates problem previews and answer keys before assigning work.
@@ -35,7 +36,7 @@ Static Vite + React app for the Doral Red Rock student, teacher, and admin gatew
 
 ## What Is Not Built Yet
 
-This version intentionally does not include an advanced curriculum builder, the full English 1 course, copyrighted English readings or worksheets, full text-highlighting tools, automatic English house points, a full gradebook, Google Classroom sync, device/browser surveillance, Clever sync, Infinite Campus sync, parent accounts, or teacher-created curriculum from scratch. It does include basic generated-problem Math assignments, student submissions, in-app Math assignment progress monitoring, a static English 1 shell, an English 1 source-library system, one working English 1 Unit 1 pilot, a reusable English assignment engine for the first five English work types, a student-facing English reading/writing workspace, and an English 1 assignment Live Monitor.
+This version intentionally does not include an advanced curriculum builder, the full English 1 course, copyrighted modern readings or worksheets, full text-highlighting tools, automatic English house points, a full gradebook, Google Classroom sync, device/browser surveillance, Clever sync, Infinite Campus sync, parent accounts, or teacher-created curriculum from scratch. It does include basic generated-problem Math assignments, student submissions, in-app Math assignment progress monitoring, a static English 1 shell, an English 1 source-library system, a real Unit 1 starter sequence, a reusable English assignment engine for the first five English work types, a student-facing English reading/writing workspace, and an English 1 assignment Live Monitor.
 
 ## Accepted Accounts
 
@@ -170,21 +171,22 @@ The scope data includes:
 
 The Scope & Sequence is a planning blueprint only. It does not add full readings, copyrighted passages, worksheets, annotation tools, English assignment creation, English submissions, or English live monitoring.
 
-## English 1 Unit 1 Pilot
+## English 1 Unit 1
 
-Version 6.3 adds one working English 1 pilot unit:
+Version 6.7 updates Unit 1 into a real starter unit:
 
 ```text
-Unit 1 - Close Reading Foundations
+Unit 1 - Reading Closely: Evidence, Inference, and Response
 ```
 
-The pilot unit appears in Teacher View or Student View when an English 1 section is opened. Teachers/admin use the `Unit 1 Pilot` tab to preview texts, preview assignment templates, assign work, and grade submissions. Students and demo/test students see assigned Unit 1 work inside the English 1 area.
+The unit appears in Teacher View or Student View when an English 1 section is opened. Teachers/admin use the `Unit 1 Pilot` tab to preview sources, assign the ready-made first assignment, manually create future English assignments, and grade submissions. Students and demo/test students see assigned Unit 1 work inside the English 1 area.
 
 Original Gamble-created texts:
 
 - `The Locked Courtyard` - short fiction / literary excerpt.
 - `Why Good Readers Slow Down` - informational text.
 - `The Note in the Margin` - short literary practice text.
+- `After Twenty Years` by O. Henry - approved Project Gutenberg link-only source.
 
 Each text is static curriculum content with:
 
@@ -202,19 +204,27 @@ requiresAttribution: false
 Pilot lessons:
 
 - What Does It Mean to Read Closely?
-- Annotation Basics.
-- Main Idea, Theme, and Evidence.
-- Writing a Short Constructed Response.
+- First Read: What Happens in `After Twenty Years`?
+- Character and Inference.
+- Theme, Loyalty, and Duty.
+- Writing a Short Evidence-Based Response.
 - Unit 1 Close Reading Skill Check.
 
-Working assignment templates:
+Ready assignment:
 
-- `Close Reading Check: Why Good Readers Slow Down`
-- `Annotation Practice: Noticing Important Details`
-- `Theme and Evidence: The Locked Courtyard`
-- `Unit 1 Skill Check`
+- `Close Reading Check: "After Twenty Years"` - Reading Check + Short Response, 20 points, objective auto-score plus teacher-reviewed written responses.
+
+Placeholder assignment sequence:
+
+- `Annotation Practice: Tracking Important Details`
+- `Character Inference: Bob and Jimmy`
+- `Theme and Evidence: Loyalty or Duty?`
+- `Vocabulary in Context: "After Twenty Years"`
+- `Unit 1 Close Reading Skill Check`
 
 Multiple-choice and selected-response questions are partially auto-graded. Annotation and written-response work is saved for teacher review. Teachers can enter a score, add feedback, and allow resubmission. Demo/test students save under demo submission paths, never real Firebase Auth student UIDs. Student Preview is local-only and does not create submissions or progress records.
+
+`After Twenty Years` is not embedded in this version. Students use `Open Reading` to open the Project Gutenberg source and return to Gamble to answer the questions.
 
 ## English Assignment Engine
 

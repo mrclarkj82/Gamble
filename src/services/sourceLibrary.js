@@ -18,6 +18,7 @@ import { db } from "../firebase";
 
 const EMBEDDABLE_LICENSE_TYPES = new Set([
   "public_domain",
+  "project_gutenberg_public_domain",
   "government_public_domain",
   "cc_by",
   "cc_by_sa",
