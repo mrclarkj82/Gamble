@@ -154,6 +154,16 @@ function countAnswered(answers = {}) {
   return Object.values(answers).filter(answerIsFilled).length;
 }
 
+function countAnnotationNotes(annotations = {}) {
+  return Object.values(annotations).reduce((sum, answer) => {
+    if (Array.isArray(answer)) {
+      return sum + answer.filter((note) => String(note?.noteText || "").trim()).length;
+    }
+
+    return sum + (String(answer || "").trim() ? 1 : 0);
+  }, 0);
+}
+
 function getAttemptNumber(existingSubmission) {
   return (Number(existingSubmission?.attemptNumber) || 0) + 1;
 }
@@ -321,10 +331,41 @@ function normalizeAssignmentDraft(draft = {}) {
   };
 }
 
-function getProgressStatus({ answeredCount, totalQuestions }) {
+function getDraftWordCount(...answerGroups) {
+  return answerGroups
+    .flatMap((group) => Object.values(group || {}))
+    .map((answer) =>
+      answer && typeof answer === "object" && !Array.isArray(answer)
+        ? Object.values(answer).join(" ")
+        : String(answer || ""),
+    )
+    .join(" ")
+    .split(/\s+/)
+    .filter(Boolean).length;
+}
+
+function getEnglishProgressStatus({
+  answeredCount,
+  annotationCount,
+  assignment,
+  draftWordCount,
+  totalQuestions,
+}) {
   if (answeredCount <= 0) return "started";
   const percent = totalQuestions ? Math.round((answeredCount / totalQuestions) * 100) : 0;
-  return percent >= 80 ? "nearly_done" : "working";
+  if (percent >= 80) return "nearly_done";
+
+  const assignmentType = String(assignment?.assignmentType || assignment?.assignmentTypeId || "").toLowerCase();
+  if (assignmentType.includes("annotation") && annotationCount > 0) return "annotating";
+  if (
+    (assignmentType.includes("paragraph") || assignmentType.includes("short response")) &&
+    draftWordCount > 0
+  ) {
+    return "drafting";
+  }
+  if (annotationCount > 0) return "annotating";
+  if (draftWordCount > 0) return "drafting";
+  return "answering";
 }
 
 function countRequiredAnswered(assignment, answers = {}) {
@@ -486,6 +527,16 @@ export function subscribeEnglishDemoSubmissions(school, section, assignmentId, o
   );
 }
 
+export function subscribeEnglishAssignmentProgress(school, section, assignmentId, onNext, onError) {
+  if (!school || !section || !assignmentId) return () => {};
+
+  return onSnapshot(
+    progressCollection(school, section, assignmentId),
+    (snapshot) => onNext(sortNewest(readSnapshot(snapshot))),
+    onError,
+  );
+}
+
 export async function createEnglishSectionAssignment({
   assignmentDraft = null,
   assignmentTemplateId,
@@ -597,7 +648,7 @@ export async function recordEnglishAssignmentOpened({
     role,
     school,
     section,
-    status: "started",
+    status: "reading",
     user,
   });
 }
@@ -613,20 +664,8 @@ export async function recordEnglishAnswerProgress({
   user,
 }) {
   const { annotations, paragraphResponse, shortResponses, vocabularyResponses } = splitEnglishAnswers(assignment, answers);
-  const annotationCount = countAnswered(annotations);
-  const draftWordCount = [
-    ...Object.values(shortResponses),
-    ...Object.values(paragraphResponse),
-    ...Object.values(vocabularyResponses),
-  ]
-    .map((answer) =>
-      answer && typeof answer === "object" && !Array.isArray(answer)
-        ? Object.values(answer).join(" ")
-        : String(answer || ""),
-    )
-    .join(" ")
-    .split(/\s+/)
-    .filter(Boolean).length;
+  const annotationCount = countAnnotationNotes(annotations);
+  const draftWordCount = getDraftWordCount(shortResponses, paragraphResponse, vocabularyResponses);
   const totalQuestions = (assignment.questions || []).length;
   const answeredCount = countAnswered(answers);
 
@@ -640,7 +679,13 @@ export async function recordEnglishAnswerProgress({
     role,
     school,
     section,
-    status: getProgressStatus({ answeredCount, totalQuestions }),
+    status: getEnglishProgressStatus({
+      answeredCount,
+      annotationCount,
+      assignment,
+      draftWordCount,
+      totalQuestions,
+    }),
     user,
   });
 }
@@ -779,22 +824,10 @@ async function submitEnglishWork({
     await writeEnglishProgress({
       actorUser,
       answers,
-      annotationCount: countAnswered(annotations),
+      annotationCount: countAnnotationNotes(annotations),
       assignment,
       attemptNumber,
-      draftWordCount: [
-        ...Object.values(shortResponses),
-        ...Object.values(paragraphResponse),
-        ...Object.values(vocabularyResponses),
-      ]
-        .map((answer) =>
-          answer && typeof answer === "object" && !Array.isArray(answer)
-            ? Object.values(answer).join(" ")
-            : String(answer || ""),
-        )
-        .join(" ")
-        .split(/\s+/)
-        .filter(Boolean).length,
+      draftWordCount: getDraftWordCount(shortResponses, paragraphResponse, vocabularyResponses),
       gradePercent: grading.gradePercent,
       isDemo,
       role,
@@ -887,10 +920,14 @@ export async function reviewEnglishSubmission({
   await writeEnglishProgress({
     actorUser,
     answers: submission.answers || {},
-    annotationCount: countAnswered(submission.annotations || {}),
+    annotationCount: countAnnotationNotes(submission.annotations || {}),
     assignment,
     attemptNumber,
-    draftWordCount: Object.values(submission.shortResponses || {}).join(" ").split(/\s+/).filter(Boolean).length,
+    draftWordCount: getDraftWordCount(
+      submission.shortResponses || {},
+      submission.paragraphResponse || {},
+      submission.vocabularyResponses || {},
+    ),
     gradePercent,
     isDemo: submissionKind === "demo",
     role,

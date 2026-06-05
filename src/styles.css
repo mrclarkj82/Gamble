@@ -956,6 +956,10 @@ h2 {
   height: 18px;
 }
 
+.english-live-monitor-toolbar {
+  grid-template-columns: minmax(280px, 1fr) minmax(160px, 220px) auto;
+}
+
 .live-assignment-meta {
   margin: 16px 18px;
 }
@@ -1072,6 +1076,29 @@ h2 {
 .monitor-tile-footer {
   align-items: center;
   grid-template-columns: 1fr auto;
+}
+
+.english-live-table {
+  min-width: 1320px;
+}
+
+.english-live-table td:first-child,
+.english-live-table th:first-child {
+  width: 18%;
+}
+
+.english-live-table td:nth-child(2),
+.english-live-table th:nth-child(2) {
+  width: 13%;
+}
+
+.english-live-table .status-pill {
+  min-width: 116px;
+  white-space: normal;
+}
+
+.live-monitor-empty {
+  margin: 0 18px 16px;
 }
 
 .status-pill {

@@ -355,7 +355,11 @@ service cloud.firestore {
     function studentProgressStatusIsAllowed() {
       return request.resource.data.status in [
         "started",
+        "reading",
         "working",
+        "answering",
+        "annotating",
+        "drafting",
         "nearly_done",
         "submitted",
         "resubmitted"
@@ -365,7 +369,11 @@ service cloud.firestore {
     function teacherProgressStatusIsAllowed() {
       return request.resource.data.status in [
         "started",
+        "reading",
         "working",
+        "answering",
+        "annotating",
+        "drafting",
         "nearly_done",
         "submitted",
         "resubmitted",

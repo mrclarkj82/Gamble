@@ -16,6 +16,7 @@ import {
   reviewEnglishSubmission,
   submitEnglishAssignmentWork,
   submitEnglishDemoAssignmentWork,
+  subscribeEnglishAssignmentProgress,
   subscribeEnglishAssignments,
   subscribeEnglishDemoSubmission,
   subscribeEnglishDemoSubmissions,
@@ -138,6 +139,16 @@ function countAnswered(answers = {}) {
   return Object.values(answers).filter(answerIsFilled).length;
 }
 
+function countAnnotationNotes(annotations = {}) {
+  return Object.values(annotations).reduce((sum, answer) => {
+    if (Array.isArray(answer)) {
+      return sum + answer.filter((note) => String(note?.noteText || "").trim()).length;
+    }
+
+    return sum + (String(answer || "").trim() ? 1 : 0);
+  }, 0);
+}
+
 function getStudentName(row) {
   return row.kind === "demo"
     ? row.student.displayName || "Demo Student"
@@ -194,12 +205,16 @@ const ANNOTATION_NOTE_TYPES = [
 
 const FRIENDLY_STATUS_LABELS = {
   assigned: "Not Started",
+  answering: "In Progress",
+  annotating: "In Progress",
   auto_graded: "Auto-Graded",
+  drafting: "In Progress",
   awaiting_teacher_review: "Awaiting Teacher Review",
   graded: "Graded",
   needs_resubmission: "Resubmission Available",
   needs_revision: "Resubmission Available",
   nearly_done: "In Progress",
+  reading: "In Progress",
   resubmitted: "Resubmitted",
   started: "In Progress",
   submitted: "Submitted",
@@ -281,6 +296,188 @@ function getQuestionWordCount(answer) {
       .filter(Boolean).length;
   }
   return String(answer).split(/\s+/).filter(Boolean).length;
+}
+
+const ENGLISH_INACTIVE_THRESHOLD_MS = 5 * 60 * 1000;
+const ENGLISH_LIVE_STATUS_FILTERS = [
+  "All",
+  "Waiting",
+  "Working",
+  "Inactive",
+  "Submitted",
+  "Needs Resubmission",
+  "Graded",
+];
+const ENGLISH_WORKING_STATUSES = new Set([
+  "Started",
+  "Reading",
+  "Answering",
+  "Annotating",
+  "Drafting",
+  "Nearly Done",
+]);
+
+function timestampToDate(value) {
+  if (!value) return null;
+  if (value && typeof value.toDate === "function") return value.toDate();
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatRelativeTime(value, now = Date.now()) {
+  const date = timestampToDate(value);
+  if (!date) return "--";
+
+  const diffMs = Math.max(0, now - date.getTime());
+  if (diffMs < 60 * 1000) return "Just now";
+
+  const minutes = Math.round(diffMs / (60 * 1000));
+  if (minutes < 60) return `${minutes} min ago`;
+
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} hr ago`;
+
+  return date.toLocaleDateString();
+}
+
+function getProgressStudentId(progress) {
+  return progress?.isDemo ? progress.demoStudentId : progress?.studentUid;
+}
+
+function clampPercent(value) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return 0;
+  return Math.max(0, Math.min(100, Math.round(numericValue)));
+}
+
+function getEnglishMonitorProgressPercent({ answeredCount, fallbackPercent, totalQuestions }) {
+  const total = Number(totalQuestions) || 0;
+  if (total > 0) return clampPercent((Number(answeredCount) / total) * 100);
+  return clampPercent(fallbackPercent);
+}
+
+function getWordCountFromGroups(...groups) {
+  return groups
+    .flatMap((group) => Object.values(group || {}))
+    .map((answer) =>
+      answer && typeof answer === "object" && !Array.isArray(answer)
+        ? Object.values(answer).join(" ")
+        : String(answer || ""),
+    )
+    .join(" ")
+    .split(/\s+/)
+    .filter(Boolean).length;
+}
+
+function getEnglishLiveStatus({ assignment, now, progress, submission }) {
+  if (
+    submission?.resubmissionAllowed ||
+    progress?.needsResubmission ||
+    ["needs_revision", "needs_resubmission"].includes(submission?.status) ||
+    progress?.status === "needs_resubmission"
+  ) {
+    return { className: "needs-resubmission", label: "Needs Resubmission" };
+  }
+
+  if (
+    submission?.status === "resubmitted" ||
+    progress?.status === "resubmitted" ||
+    (Number(submission?.attemptNumber || progress?.attemptNumber) || 0) > 1
+  ) {
+    return { className: "resubmitted", label: "Resubmitted" };
+  }
+
+  if (submission?.status === "graded" || submission?.gradedAt || progress?.status === "graded") {
+    return { className: "graded", label: "Graded" };
+  }
+
+  if (submission?.status === "auto_graded") {
+    return { className: "graded", label: "Graded" };
+  }
+
+  if (
+    submission?.status === "submitted" ||
+    submission?.status === "awaiting_teacher_review" ||
+    submission?.submittedAt ||
+    progress?.status === "submitted" ||
+    progress?.submittedAt
+  ) {
+    return { className: "submitted", label: "Submitted" };
+  }
+
+  const lastActivity = timestampToDate(progress?.lastActivityAt);
+  const answeredCount = Number(progress?.answeredCount) || 0;
+  const annotationCount = Number(progress?.annotationCount) || 0;
+  const draftWordCount = Number(progress?.draftWordCount) || 0;
+  const hasStarted = Boolean(
+    progress?.openedAt ||
+      lastActivity ||
+      answeredCount > 0 ||
+      annotationCount > 0 ||
+      draftWordCount > 0,
+  );
+
+  if (hasStarted && lastActivity && now - lastActivity.getTime() > ENGLISH_INACTIVE_THRESHOLD_MS) {
+    return { className: "inactive", label: "Inactive" };
+  }
+
+  const progressPercent = Number(progress?.progressPercent) || 0;
+  if (progressPercent >= 80 && (answeredCount > 0 || annotationCount > 0 || draftWordCount > 0)) {
+    return { className: "nearly-done", label: "Nearly Done" };
+  }
+
+  const assignmentType = String(assignment?.assignmentType || assignment?.assignmentTypeId || "").toLowerCase();
+  if (
+    (assignmentType.includes("paragraph") || assignmentType.includes("short response")) &&
+    draftWordCount > 0
+  ) {
+    return { className: "working", label: "Drafting" };
+  }
+
+  if (assignmentType.includes("annotation") && annotationCount > 0) {
+    return { className: "working", label: "Annotating" };
+  }
+
+  if (draftWordCount > 0) return { className: "working", label: "Drafting" };
+  if (annotationCount > 0) return { className: "working", label: "Annotating" };
+  if (answeredCount > 0 || progress?.status === "answering" || progress?.status === "working") {
+    return { className: "working", label: "Answering" };
+  }
+  if (progress?.status === "reading") return { className: "started", label: "Reading" };
+  if (progress?.openedAt || progress?.status === "started") return { className: "started", label: "Started" };
+
+  return { className: "waiting", label: "Waiting" };
+}
+
+function statusMatchesEnglishFilter(row, filter) {
+  if (filter === "All") return true;
+  if (filter === "Working") return ENGLISH_WORKING_STATUSES.has(row.liveStatus.label);
+  return row.liveStatus.label === filter;
+}
+
+function getEnglishSummaryCounts(rows) {
+  return rows.reduce(
+    (counts, row) => {
+      const label = row.liveStatus.label;
+      if (label === "Waiting") counts.Waiting += 1;
+      else if (label === "Inactive") counts.Inactive += 1;
+      else if (label === "Submitted") counts.Submitted += 1;
+      else if (label === "Needs Resubmission") counts["Needs Resubmission"] += 1;
+      else if (label === "Graded") counts.Graded += 1;
+      else if (label === "Resubmitted") counts.Resubmitted += 1;
+      else counts.Working += 1;
+      return counts;
+    },
+    {
+      Waiting: 0,
+      Working: 0,
+      Inactive: 0,
+      Submitted: 0,
+      "Needs Resubmission": 0,
+      Graded: 0,
+      Resubmitted: 0,
+    },
+  );
 }
 
 function defaultConfig(typeId) {
@@ -1922,7 +2119,7 @@ function EnglishWorkDetail({ assignment, onClose, role, row, school, section, us
   const [resubmissionDueDate, setResubmissionDueDate] = useState(submission?.resubmissionDueDate || "");
   const [message, setMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
-  const status = getRosterStatus(submission);
+  const status = row.liveStatus || getRosterStatus(submission);
   const totalPoints = getTotalPoints(assignment, submission);
 
   useEffect(() => {
@@ -1986,6 +2183,18 @@ function EnglishWorkDetail({ assignment, onClose, role, row, school, section, us
           <div>
             <dt>Status</dt>
             <dd>{status.label}</dd>
+          </div>
+          <div>
+            <dt>Answered</dt>
+            <dd>{row.answeredLabel || (submission ? `${countAnswered(submission.answers)} / ${assignment.questions?.length || 0}` : "--")}</dd>
+          </div>
+          <div>
+            <dt>Annotations</dt>
+            <dd>{row.annotationCount ?? countAnnotationNotes(submission?.annotations || {})}</dd>
+          </div>
+          <div>
+            <dt>Draft Words</dt>
+            <dd>{row.draftWordCount ?? "--"}</dd>
           </div>
           <div>
             <dt>Submitted</dt>
@@ -2260,9 +2469,459 @@ function EnglishRosterGradingView({ assignment, onBack, role, school, section, u
   );
 }
 
+function buildEnglishLiveMonitorRows({
+  demoRoster,
+  demoSubmissions,
+  includeDemoStudents,
+  now,
+  progressItems,
+  roster,
+  selectedAssignment,
+  submissions,
+}) {
+  const activeRoster = roster.filter((student) => student.status !== "inactive");
+  const activeDemoRoster = includeDemoStudents
+    ? demoRoster.filter((student) => student.status !== "inactive")
+    : [];
+  const baseRows = buildRosterRows({
+    demoRoster: activeDemoRoster,
+    demoSubmissions,
+    roster: activeRoster,
+    submissions,
+  });
+
+  return baseRows.map((row) => {
+    const studentId = getStudentId(row);
+    const progress =
+      progressItems.find(
+        (item) => item.isDemo === (row.kind === "demo") && getProgressStudentId(item) === studentId,
+      ) || null;
+    const totalQuestions =
+      Number(progress?.totalQuestions) ||
+      Number(row.submission?.totalQuestions) ||
+      selectedAssignment.questions?.length ||
+      0;
+    const answeredCount = row.submission
+      ? countAnswered(row.submission.answers || {})
+      : Number(progress?.answeredCount) || 0;
+    const annotationCount = row.submission
+      ? countAnnotationNotes(row.submission.annotations || {})
+      : Number(progress?.annotationCount) || 0;
+    const draftWordCount = row.submission
+      ? getWordCountFromGroups(
+          row.submission.shortResponses || {},
+          row.submission.paragraphResponse || {},
+          row.submission.vocabularyResponses || {},
+        )
+      : Number(progress?.draftWordCount) || 0;
+    const progressPercent = getEnglishMonitorProgressPercent({
+      answeredCount,
+      fallbackPercent: Number(progress?.progressPercent) || 0,
+      totalQuestions,
+    });
+    const liveStatus = getEnglishLiveStatus({
+      assignment: selectedAssignment,
+      now,
+      progress,
+      submission: row.submission,
+    });
+    const submittedAt = getLatestSubmittedAt(row.submission) || progress?.submittedAt;
+    const score = row.submission
+      ? getSubmissionScore(row.submission)
+      : progress?.score;
+    const totalPoints = row.submission ? getTotalPoints(selectedAssignment, row.submission) : getTotalPoints(selectedAssignment, null);
+    const gradePercent = row.submission ? getSubmissionPercent(row.submission) : progress?.gradePercent;
+
+    return {
+      ...row,
+      answeredCount,
+      answeredLabel: totalQuestions ? `${answeredCount} / ${totalQuestions}` : "--",
+      annotationCount,
+      draftWordCount,
+      gradeLabel: gradePercent !== undefined && gradePercent !== null ? `${gradePercent}%` : "--",
+      lastActivityAt: progress?.lastActivityAt || row.submission?.updatedAt || submittedAt,
+      liveStatus,
+      progress,
+      progressPercent,
+      scoreLabel: score !== undefined && score !== null ? `${score} / ${totalPoints || "--"}` : "--",
+      submittedAt,
+      submittedLabel: formatDateTime(submittedAt),
+      totalQuestions,
+    };
+  });
+}
+
+function EnglishLiveMonitorView({ onBack, role, school, section, user }) {
+  const [assignments, setAssignments] = useState([]);
+  const [selectedAssignmentId, setSelectedAssignmentId] = useState("");
+  const [roster, setRoster] = useState([]);
+  const [demoRoster, setDemoRoster] = useState([]);
+  const [progressItems, setProgressItems] = useState([]);
+  const [submissions, setSubmissions] = useState([]);
+  const [demoSubmissions, setDemoSubmissions] = useState([]);
+  const [includeDemoStudents, setIncludeDemoStudents] = useState(true);
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [openStudent, setOpenStudent] = useState(null);
+  const [error, setError] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
+  const [now, setNow] = useState(Date.now());
+  const sectionId = section?.sectionId || section?.id;
+  const selectedAssignment = assignments.find((assignment) => assignment.assignmentId === selectedAssignmentId);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(Date.now()), 60000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (!school || !section) return undefined;
+
+    return subscribeEnglishAssignments(
+      school,
+      section,
+      (nextAssignments) => {
+        setAssignments(nextAssignments);
+        setError("");
+      },
+      (loadError) => {
+        console.error("English live monitor assignments failed to load", loadError);
+        setError("Live Monitor unavailable: you do not have access to this section.");
+      },
+    );
+  }, [reloadKey, school, section]);
+
+  useEffect(() => {
+    if (!assignments.length) {
+      setSelectedAssignmentId("");
+      return;
+    }
+
+    if (!selectedAssignmentId || !assignments.some((assignment) => assignment.assignmentId === selectedAssignmentId)) {
+      setSelectedAssignmentId(assignments[0].assignmentId);
+    }
+  }, [assignments, selectedAssignmentId]);
+
+  useEffect(() => {
+    if (!school || !sectionId) return undefined;
+
+    return subscribeSectionRoster(
+      school,
+      sectionId,
+      (students) => {
+        setRoster(students);
+        setError("");
+      },
+      (loadError) => {
+        console.error("English live monitor roster failed to load", loadError);
+        setError("Live Monitor unavailable: you do not have access to this section.");
+      },
+    );
+  }, [reloadKey, school, sectionId]);
+
+  useEffect(() => {
+    if (!school || !section) return undefined;
+
+    return subscribeDemoStudents(
+      school,
+      section,
+      (students) => {
+        setDemoRoster(students);
+        setError("");
+      },
+      (loadError) => {
+        console.error("English live monitor demo roster failed to load", loadError);
+        setError("Live Monitor unavailable: you do not have access to this section.");
+      },
+    );
+  }, [reloadKey, school, section]);
+
+  useEffect(() => {
+    setOpenStudent(null);
+    setProgressItems([]);
+    setSubmissions([]);
+    setDemoSubmissions([]);
+  }, [selectedAssignmentId]);
+
+  useEffect(() => {
+    if (!school || !section || !selectedAssignmentId) return undefined;
+
+    return subscribeEnglishAssignmentProgress(
+      school,
+      section,
+      selectedAssignmentId,
+      (items) => {
+        setProgressItems(items);
+        setError("");
+      },
+      (loadError) => {
+        console.error("English live monitor progress failed to load", loadError);
+        setError("Live Monitor unavailable: you do not have access to this section.");
+      },
+    );
+  }, [reloadKey, school, section, selectedAssignmentId]);
+
+  useEffect(() => {
+    if (!school || !section || !selectedAssignmentId) return undefined;
+
+    return subscribeEnglishSubmissions(
+      school,
+      section,
+      selectedAssignmentId,
+      (items) => {
+        setSubmissions(items);
+        setError("");
+      },
+      (loadError) => {
+        console.error("English live monitor submissions failed to load", loadError);
+        setError("Live Monitor unavailable: you do not have access to this section.");
+      },
+    );
+  }, [reloadKey, school, section, selectedAssignmentId]);
+
+  useEffect(() => {
+    if (!school || !section || !selectedAssignmentId) return undefined;
+
+    return subscribeEnglishDemoSubmissions(
+      school,
+      section,
+      selectedAssignmentId,
+      (items) => {
+        setDemoSubmissions(items);
+        setError("");
+      },
+      (loadError) => {
+        console.error("English live monitor demo submissions failed to load", loadError);
+        setError("Live Monitor unavailable: you do not have access to this section.");
+      },
+    );
+  }, [reloadKey, school, section, selectedAssignmentId]);
+
+  const rows = useMemo(
+    () =>
+      selectedAssignment
+        ? buildEnglishLiveMonitorRows({
+            demoRoster,
+            demoSubmissions,
+            includeDemoStudents,
+            now,
+            progressItems,
+            roster,
+            selectedAssignment,
+            submissions,
+          })
+        : [],
+    [
+      demoRoster,
+      demoSubmissions,
+      includeDemoStudents,
+      now,
+      progressItems,
+      roster,
+      selectedAssignment,
+      submissions,
+    ],
+  );
+  const filteredRows = useMemo(
+    () => rows.filter((row) => statusMatchesEnglishFilter(row, statusFilter)),
+    [rows, statusFilter],
+  );
+  const summaryCounts = useMemo(() => getEnglishSummaryCounts(rows), [rows]);
+  const activeRow = rows.find(
+    (row) => openStudent && row.kind === openStudent.kind && getStudentId(row) === openStudent.id,
+  );
+
+  function handleRefresh() {
+    setNow(Date.now());
+    setReloadKey((current) => current + 1);
+  }
+
+  return (
+    <section className="grading-roster-card live-monitor-card english-live-monitor-card">
+      <header className="grading-roster-header">
+        <div>
+          <button className="grading-back-button" onClick={onBack} type="button">
+            Back to English 1
+          </button>
+          <p className="eyebrow">{section.sectionName}</p>
+          <h2>English 1 Live Monitor</h2>
+        </div>
+        <div className="button-row">
+          <button className="secondary-button fit-button" onClick={handleRefresh} type="button">
+            Refresh
+          </button>
+        </div>
+      </header>
+
+      {error ? <p className="error-message">{error}</p> : null}
+
+      <section className="live-monitor-toolbar english-live-monitor-toolbar">
+        <label>
+          Assignment
+          <select
+            onChange={(event) => setSelectedAssignmentId(event.target.value)}
+            value={selectedAssignmentId}
+          >
+            <option value="">Choose English assignment</option>
+            {assignments.map((assignment) => (
+              <option key={assignment.assignmentId} value={assignment.assignmentId}>
+                {assignment.title} - {assignment.assignmentType}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Status
+          <select onChange={(event) => setStatusFilter(event.target.value)} value={statusFilter}>
+            {ENGLISH_LIVE_STATUS_FILTERS.map((filter) => (
+              <option key={filter} value={filter}>
+                {filter}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="monitor-toggle">
+          <input
+            checked={includeDemoStudents}
+            onChange={(event) => setIncludeDemoStudents(event.target.checked)}
+            type="checkbox"
+          />
+          Show Demo Students
+        </label>
+      </section>
+
+      {!assignments.length ? (
+        <p className="muted-message live-monitor-empty">
+          No English 1 assignments have been assigned to this section yet.
+        </p>
+      ) : null}
+
+      {selectedAssignment ? (
+        <>
+          <dl className="detail-list assignment-detail-list live-assignment-meta">
+            <div>
+              <dt>Assignment Type</dt>
+              <dd>{selectedAssignment.assignmentType}</dd>
+            </div>
+            <div>
+              <dt>Unit</dt>
+              <dd>{selectedAssignment.unitId || "English 1"}</dd>
+            </div>
+            <div>
+              <dt>Due</dt>
+              <dd>{formatDate(selectedAssignment.dueDate)}</dd>
+            </div>
+            <div>
+              <dt>Section</dt>
+              <dd>{selectedAssignment.sectionName || section.sectionName}</dd>
+            </div>
+          </dl>
+
+          {rows.length ? (
+            <div className="summary-pill-row">
+              {Object.entries(summaryCounts).map(([label, count]) =>
+                count ? (
+                  <span key={label}>
+                    {label}: {count}
+                  </span>
+                ) : null,
+              )}
+            </div>
+          ) : (
+            <p className="muted-message live-monitor-empty">No students are currently in this section.</p>
+          )}
+
+          {rows.length && !progressItems.length && !submissions.length && !demoSubmissions.length ? (
+            <p className="muted-message live-monitor-empty">
+              No students have opened this English assignment yet.
+            </p>
+          ) : null}
+
+          <div className="grading-table-wrap english-live-table-wrap">
+            <table className="grading-table english-live-table">
+              <thead>
+                <tr>
+                  <th>Student</th>
+                  <th>Status</th>
+                  <th>Progress</th>
+                  <th>Answered</th>
+                  <th>Annotations</th>
+                  <th>Draft Words</th>
+                  <th>Last Activity</th>
+                  <th>Submitted</th>
+                  <th>Score</th>
+                  <th>Grade</th>
+                  <th>Work</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredRows.length ? (
+                  filteredRows.map((row) => (
+                    <tr key={`${row.kind}-${getStudentId(row)}`}>
+                      <td>
+                        {getStudentName(row)}
+                        {row.kind === "demo" ? <span className="inline-badge">Demo</span> : null}
+                      </td>
+                      <td>
+                        <span className={`status-pill ${row.liveStatus.className}`}>
+                          {row.liveStatus.label}
+                        </span>
+                      </td>
+                      <td>{row.progress || row.submission ? `${row.progressPercent}%` : "0%"}</td>
+                      <td>{row.answeredLabel}</td>
+                      <td>{row.annotationCount || "--"}</td>
+                      <td>{row.draftWordCount || "--"}</td>
+                      <td>{formatRelativeTime(row.lastActivityAt, now)}</td>
+                      <td>{row.submittedLabel}</td>
+                      <td>{row.scoreLabel}</td>
+                      <td>{row.gradeLabel}</td>
+                      <td>
+                        <button
+                          className="secondary-button fit-button"
+                          onClick={() => setOpenStudent({ id: getStudentId(row), kind: row.kind })}
+                          type="button"
+                        >
+                          View Work
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="11">
+                      {rows.length
+                        ? "No students match this status filter."
+                        : "No students are currently in this section."}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : assignments.length ? (
+        <p className="muted-message live-monitor-empty">Choose an assignment to start monitoring.</p>
+      ) : null}
+
+      {activeRow && selectedAssignment ? (
+        <EnglishWorkDetail
+          assignment={selectedAssignment}
+          onClose={() => setOpenStudent(null)}
+          role={role}
+          row={activeRow}
+          school={school}
+          section={section}
+          user={user}
+        />
+      ) : null}
+    </section>
+  );
+}
+
 export default function EnglishAssignmentEngine({
   actorUser = null,
   canAssign = false,
+  liveMonitorOnly = false,
+  onBack = null,
   previewMode = false,
   role,
   school,
@@ -2272,6 +2931,18 @@ export default function EnglishAssignmentEngine({
 }) {
   const [showBuilder, setShowBuilder] = useState(false);
   const [gradingAssignment, setGradingAssignment] = useState(null);
+
+  if (liveMonitorOnly && !testMode && !previewMode) {
+    return (
+      <EnglishLiveMonitorView
+        onBack={onBack || (() => {})}
+        role={role}
+        school={school}
+        section={section}
+        user={user}
+      />
+    );
+  }
 
   if (canAssign && gradingAssignment && !testMode && !previewMode) {
     return (

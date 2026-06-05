@@ -18,6 +18,7 @@ Static Vite + React app for the Doral Red Rock student, teacher, and admin gatew
 - Adds an English 1 Unit 1 pilot, `Close Reading Foundations`, with original Gamble-created practice texts, five pilot lessons, assignable Unit 1 English work, student/demo submissions, teacher review, feedback, resubmission, and progress records for future English monitoring.
 - Adds a reusable English Assignment Engine for Reading Check, Short Response, Annotation Assignment, Paragraph Response, and Vocabulary Practice work.
 - Adds a dedicated English student reading/writing workspace with reading/source panel, assignment panel, simple annotation notes, autosave/progress tracking, feedback, grades, and resubmission support.
+- Adds an English 1 Live Monitor for selected section assignments with real and demo roster students, live progress, annotation counts, draft word counts, inactive status, summary filters, and View Work.
 - Lets admin manage English 1 source-library records and lets teachers view approved resources or submit needs-review suggestions.
 - Lets teachers create actual Math assignments from the pre-built curriculum.
 - Generates problem previews and answer keys before assigning work.
@@ -34,7 +35,7 @@ Static Vite + React app for the Doral Red Rock student, teacher, and admin gatew
 
 ## What Is Not Built Yet
 
-This version intentionally does not include an advanced curriculum builder, the full English 1 course, copyrighted English readings or worksheets, full text-highlighting tools, a full English live-monitor dashboard, a full gradebook, Google Classroom sync, device/browser surveillance, Clever sync, Infinite Campus sync, parent accounts, or teacher-created curriculum from scratch. It does include basic generated-problem Math assignments, student submissions, in-app Math assignment progress monitoring, a static English 1 shell, an English 1 source-library system, one working English 1 Unit 1 pilot, a reusable English assignment engine for the first five English work types, and a student-facing English reading/writing workspace.
+This version intentionally does not include an advanced curriculum builder, the full English 1 course, copyrighted English readings or worksheets, full text-highlighting tools, automatic English house points, a full gradebook, Google Classroom sync, device/browser surveillance, Clever sync, Infinite Campus sync, parent accounts, or teacher-created curriculum from scratch. It does include basic generated-problem Math assignments, student submissions, in-app Math assignment progress monitoring, a static English 1 shell, an English 1 source-library system, one working English 1 Unit 1 pilot, a reusable English assignment engine for the first five English work types, a student-facing English reading/writing workspace, and an English 1 assignment Live Monitor.
 
 ## Accepted Accounts
 
@@ -280,7 +281,43 @@ Source safety:
 - Needs-review or rejected resources cannot be assigned from the builder.
 - No copyrighted full texts are added by Version 6.4.
 
-Student Preview is local/read-only. It allows typing and Preview Submit, but it only saves browser-local drafts and does not create Firestore submissions or progress records. Test as Student uses demo roster students and writes demo submissions/progress only. English progress records are written to the same assignment progress path shape as Math so a later Version 6.6 English Live Monitor can reuse the data shape. The existing Math Live Monitor UI is not expanded into a full English monitor in Version 6.5.
+Student Preview is local/read-only. It allows typing and Preview Submit, but it only saves browser-local drafts and does not create Firestore submissions or progress records. Test as Student uses demo roster students and writes demo submissions/progress only. English progress records use the same assignment progress path shape as Math.
+
+## English Live Monitor
+
+Version 6.6 adds an English 1 Live Monitor. Teachers/admin open Teacher View, select an English 1 section, open `Curriculum`, and choose the `Live Monitor` tab.
+
+The monitor reads:
+
+```text
+schools/{schoolId}/sections/{sectionId}/assignments/{assignmentId}
+schools/{schoolId}/sections/{sectionId}/assignments/{assignmentId}/progress/{studentKey}
+schools/{schoolId}/sections/{sectionId}/assignments/{assignmentId}/submissions/{studentUid}
+schools/{schoolId}/sections/{sectionId}/assignments/{assignmentId}/demoSubmissions/{demoStudentId}
+schools/{schoolId}/sections/{sectionId}/enrollments/{studentUid}
+schools/{schoolId}/sections/{sectionId}/demoStudents/{demoStudentId}
+```
+
+The English monitor shows only English assignments for the selected section. It merges active real enrollments, active demo students, progress records, and submissions so students with no activity still appear as `Waiting`.
+
+English statuses are calculated in the frontend with this priority:
+
+```text
+Needs Resubmission
+Resubmitted
+Graded
+Submitted
+Inactive
+Nearly Done
+Drafting
+Annotating
+Answering
+Reading
+Started
+Waiting
+```
+
+`Inactive` is calculated in the browser after five minutes without activity while the monitor is open. It does not track tabs, devices, external reading sites, or behavior outside Gamble assignment fields.
 
 ## English 1 Source Library
 
@@ -615,15 +652,19 @@ schools/{schoolId}/sections/{sectionId}/assignments/{assignmentId}/progress/{stu
   updatedAt
 ```
 
-English Unit 1 writes progress to the same future-monitoring path:
+English Unit 1 writes progress to the same assignment-monitoring path:
 
 ```text
 schools/{schoolId}/sections/{sectionId}/assignments/{assignmentId}/progress/{studentKey}
   subject: "english"
   courseId: "english-1"
   unitId
+  lessonId
+  assignmentType
   answeredCount
   totalQuestions
+  requiredAnsweredCount
+  requiredTotalCount
   annotationCount
   draftWordCount
   progressPercent
@@ -631,9 +672,11 @@ schools/{schoolId}/sections/{sectionId}/assignments/{assignmentId}/progress/{stu
   lastActivityAt
   submittedAt
   attemptNumber
+  score
+  gradePercent
 ```
 
-The existing Math Live Monitor UI was not expanded for English in Version 6.3. English progress records are written so a future subject-neutral monitor can consume them.
+Version 6.6 adds an English 1 Live Monitor that consumes these progress records. The existing Math Live Monitor remains in place and continues to use the Math assignment progress fields.
 
 `studentKey` is the real Firebase Auth UID for real students and the demo
 student ID for demo/test students. Student Preview does not write progress.

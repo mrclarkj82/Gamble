@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ENGLISH_1_COURSE } from "../data/englishCurriculum";
+import EnglishAssignmentEngine from "./EnglishAssignmentEngine";
 import EnglishScopeSequenceView from "./EnglishScopeSequenceView";
 import EnglishUnit1PilotView from "./EnglishUnit1PilotView";
 import SourceLibrary from "./SourceLibrary";
@@ -261,6 +262,13 @@ export default function EnglishCurriculumView({
             Scope & Sequence
           </button>
           <button
+            className={activeTab === "monitor" ? "active" : ""}
+            onClick={() => setActiveTab("monitor")}
+            type="button"
+          >
+            Live Monitor
+          </button>
+          <button
             className={activeTab === "overview" ? "active" : ""}
             onClick={() => setActiveTab("overview")}
             type="button"
@@ -319,6 +327,17 @@ export default function EnglishCurriculumView({
 
       {canPreview && !isTestMode && activeTab === "scope" ? (
         <EnglishScopeSequenceView />
+      ) : null}
+
+      {canPreview && !isTestMode && activeTab === "monitor" ? (
+        <EnglishAssignmentEngine
+          liveMonitorOnly
+          role={role}
+          school={school}
+          section={section}
+          user={user}
+          onBack={() => setActiveTab("unit1")}
+        />
       ) : null}
 
       {canPreview && !isTestMode && activeTab === "overview" ? (
