@@ -28,6 +28,70 @@ import { canResourceBeEmbedded, getResourceUseLabel, subscribeSourceLibrary } fr
 import { subscribeSectionRoster } from "../services/sections";
 
 const DEFAULT_SOURCE_KEY = `original:${englishUnit1Texts[0]?.textId || ""}`;
+const READING_PREFERENCE_KEY = "gamble:english-reading-preferences";
+const DEFAULT_READING_PREFERENCES = {
+  background: "white",
+  fontSize: "normal",
+  lineSpacing: "normal",
+  readingWidth: "normal",
+};
+const READING_DISPLAY_OPTIONS = {
+  background: [
+    { label: "White", value: "white" },
+    { label: "Cream", value: "cream" },
+    { label: "Soft Gray", value: "soft-gray" },
+    { label: "Dark", value: "dark" },
+  ],
+  fontSize: [
+    { label: "Small", value: "small" },
+    { label: "Normal", value: "normal" },
+    { label: "Large", value: "large" },
+    { label: "Extra Large", value: "extra-large" },
+  ],
+  lineSpacing: [
+    { label: "Normal", value: "normal" },
+    { label: "Wide", value: "wide" },
+  ],
+  readingWidth: [
+    { label: "Narrow", value: "narrow" },
+    { label: "Normal", value: "normal" },
+    { label: "Wide", value: "wide" },
+  ],
+};
+
+function normalizeReadingPreferences(preferences = {}) {
+  return Object.entries(DEFAULT_READING_PREFERENCES).reduce((normalized, [key, defaultValue]) => {
+    const allowedValues = (READING_DISPLAY_OPTIONS[key] || []).map((option) => option.value);
+    const value = preferences[key];
+    normalized[key] = allowedValues.includes(value) ? value : defaultValue;
+    return normalized;
+  }, {});
+}
+
+function readReadingPreferences() {
+  if (typeof window === "undefined") return DEFAULT_READING_PREFERENCES;
+
+  try {
+    const saved = window.localStorage.getItem(READING_PREFERENCE_KEY);
+    return normalizeReadingPreferences(saved ? JSON.parse(saved) : {});
+  } catch (error) {
+    console.warn("Unable to read English reading preferences", error);
+    return DEFAULT_READING_PREFERENCES;
+  }
+}
+
+function writeReadingPreferences(preferences) {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.setItem(
+      READING_PREFERENCE_KEY,
+      JSON.stringify(normalizeReadingPreferences(preferences)),
+    );
+  } catch (error) {
+    console.warn("Unable to save English reading preferences", error);
+  }
+}
 
 function formatDate(value) {
   if (!value) return "No due date";
@@ -766,7 +830,43 @@ function newVocabularyItem(index) {
   };
 }
 
-function SourcePanel({ assignment }) {
+function ReadingDisplayControls({ onChange, preferences }) {
+  const fields = [
+    { key: "background", label: "Background" },
+    { key: "fontSize", label: "Font size" },
+    { key: "lineSpacing", label: "Line spacing" },
+    { key: "readingWidth", label: "Reading width" },
+  ];
+
+  return (
+    <section className="reading-display-controls" aria-label="Reading display controls">
+      <div>
+        <p className="eyebrow">Reading Display</p>
+        <p className="helper-copy">Your choices are saved on this device.</p>
+      </div>
+      <div className="reading-display-grid">
+        {fields.map((field) => (
+          <label key={field.key}>
+            {field.label}
+            <select
+              onChange={(event) => onChange(field.key, event.target.value)}
+              value={preferences[field.key]}
+            >
+              {READING_DISPLAY_OPTIONS[field.key].map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function SourcePanel({ assignment, readingPreferences = DEFAULT_READING_PREFERENCES }) {
+  const normalizedPreferences = normalizeReadingPreferences(readingPreferences);
   const textBlocks = assignment.textBlocks?.length
     ? assignment.textBlocks
     : (assignment.textIds || [])
@@ -780,8 +880,16 @@ function SourcePanel({ assignment }) {
     return <p className="muted-message">No reading source is attached to this assignment.</p>;
   }
 
+  const className = [
+    "english-source-panel",
+    `reading-bg-${normalizedPreferences.background}`,
+    `reading-font-${normalizedPreferences.fontSize}`,
+    `reading-spacing-${normalizedPreferences.lineSpacing}`,
+    `reading-width-${normalizedPreferences.readingWidth}`,
+  ].join(" ");
+
   return (
-    <section className="english-source-panel">
+    <section className={className}>
       {textBlocks.map((text) => (
         <article className="english-text-card" key={text.textId || text.title}>
           <div className="section-heading-row compact-heading">
@@ -1023,6 +1131,7 @@ function EnglishStudentWorkspace({
   const [previewCheckCount, setPreviewCheckCount] = useState(0);
   const [saveStatus, setSaveStatus] = useState("No answers saved yet.");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [readingPreferences, setReadingPreferences] = useState(readReadingPreferences);
   const localDraftKey = getLocalDraftKey({ assignment, previewMode, testMode, user });
 
   useEffect(() => {
@@ -1130,6 +1239,14 @@ function EnglishStudentWorkspace({
 
   function updateAnswer(questionId, value) {
     setAnswers((current) => ({ ...current, [questionId]: value }));
+  }
+
+  function updateReadingPreference(field, value) {
+    setReadingPreferences((current) => {
+      const nextPreferences = normalizeReadingPreferences({ ...current, [field]: value });
+      writeReadingPreferences(nextPreferences);
+      return nextPreferences;
+    });
   }
 
   async function handleSubmit() {
@@ -1254,7 +1371,11 @@ function EnglishStudentWorkspace({
               <h3>Source</h3>
             </div>
           </div>
-          <SourcePanel assignment={assignment} />
+          <ReadingDisplayControls
+            onChange={updateReadingPreference}
+            preferences={readingPreferences}
+          />
+          <SourcePanel assignment={assignment} readingPreferences={readingPreferences} />
         </aside>
 
         <section className="english-writing-column">
